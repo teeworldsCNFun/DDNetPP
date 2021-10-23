@@ -1436,6 +1436,7 @@ set_src(BASE GLOB_RECURSE src/base
   color.h
   ddpp_logs.c
   ddpp_logs.h
+  ddpp_math.h
   detect.h
   dynamic.h
   hash.c
