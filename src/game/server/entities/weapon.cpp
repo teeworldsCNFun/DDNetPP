@@ -3,8 +3,8 @@
 
 #include <game/server/teams.h>
 
-#include "weapon.h"
 #include "pickup.h"
+#include "weapon.h"
 
 CWeapon::CWeapon(CGameWorld *pGameWorld, int Weapon, int Lifetime, int Owner, int Direction, int ResponsibleTeam, int Bullets, bool Jetpack, bool SpreadGun) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP)

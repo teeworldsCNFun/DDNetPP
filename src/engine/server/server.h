@@ -415,7 +415,6 @@ public:
 	static void ConStartBlockTourna(IConsole::IResult *pResult, void *pUser);
 	//static void ConDDPPshutdown(IConsole::IResult *pResult, void *pUser);
 
-
 #if defined(CONF_FAMILY_UNIX)
 	static void ConchainConnLoggingServerChange(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 #endif

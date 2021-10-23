@@ -14,4 +14,3 @@
 #define CLIENT_VERSIONNR 15010
 extern const char *GIT_SHORTREV_HASH;
 #endif
-
