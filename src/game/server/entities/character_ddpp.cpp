@@ -5,6 +5,7 @@
 #include <engine/server/server.h>
 #include <game/server/gamemodes/DDRace.h>
 #include <game/server/player.h>
+#include <base/ddpp_math.h>
 
 #include "laser.h"
 #include "projectile.h"
@@ -17,6 +18,17 @@ void CCharacter::DDPPDDRacePostCoreTick()
 {
 	if (!isFreezed)
 		m_FirstFreezeTick = 0;
+}
+
+void CCharacter::ClearFakeMotd()
+{
+	if (m_pPlayer->m_IsFakeMotd)
+	{
+		GameServer()->AbuseMotd(g_Config.m_SvMotd, m_pPlayer->GetCID());
+		//GameServer()->SendChatTarget(m_pPlayer->GetCID(), "clear fake motd");
+		m_pPlayer->m_CanClearFakeMotd = true;
+		m_pPlayer->m_IsFakeMotd = false;
+	}
 }
 
 bool CCharacter::HandleConfigTile(int Type)
