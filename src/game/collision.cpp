@@ -70,25 +70,25 @@ void CCollision::Init(class CLayers *pLayers)
 	if(m_pLayers->TeleLayer())
 	{
 		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->TeleLayer()->m_Tele);
-		if(Size >= m_Width * m_Height * sizeof(CTeleTile))
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTeleTile))
 			m_pTele = static_cast<CTeleTile *>(m_pLayers->Map()->GetData(m_pLayers->TeleLayer()->m_Tele));
 	}
 
 	if(m_pLayers->SpeedupLayer())
 	{
 		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->SpeedupLayer()->m_Speedup);
-		if(Size >= m_Width * m_Height * sizeof(CSpeedupTile))
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CSpeedupTile))
 			m_pSpeedup = static_cast<CSpeedupTile *>(m_pLayers->Map()->GetData(m_pLayers->SpeedupLayer()->m_Speedup));
 	}
 
 	if(m_pLayers->SwitchLayer())
 	{
 		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->SwitchLayer()->m_Switch);
-		if(Size >= m_Width * m_Height * sizeof(CSwitchTile))
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CSwitchTile))
 			m_pSwitch = static_cast<CSwitchTile *>(m_pLayers->Map()->GetData(m_pLayers->SwitchLayer()->m_Switch));
 
 		m_pDoor = new CDoorTile[m_Width * m_Height];
-		mem_zero(m_pDoor, m_Width * m_Height * sizeof(CDoorTile));
+		mem_zero(m_pDoor, (size_t)m_Width * m_Height * sizeof(CDoorTile));
 	}
 	else
 	{
@@ -99,14 +99,14 @@ void CCollision::Init(class CLayers *pLayers)
 	if(m_pLayers->TuneLayer())
 	{
 		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->TuneLayer()->m_Tune);
-		if(Size >= m_Width * m_Height * sizeof(CTuneTile))
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTuneTile))
 			m_pTune = static_cast<CTuneTile *>(m_pLayers->Map()->GetData(m_pLayers->TuneLayer()->m_Tune));
 	}
 
 	if(m_pLayers->FrontLayer())
 	{
 		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->FrontLayer()->m_Front);
-		if(Size >= m_Width * m_Height * sizeof(CTile))
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTile))
 			m_pFront = static_cast<CTile *>(m_pLayers->Map()->GetData(m_pLayers->FrontLayer()->m_Front));
 	}
 
@@ -159,7 +159,7 @@ void CCollision::FillAntibot(CAntibotMapData *pMapData)
 {
 	pMapData->m_Width = m_Width;
 	pMapData->m_Height = m_Height;
-	pMapData->m_pTiles = (unsigned char *)malloc(m_Width * m_Height);
+	pMapData->m_pTiles = (unsigned char *)malloc((size_t)m_Width * m_Height);
 	for(int i = 0; i < m_Width * m_Height; i++)
 	{
 		pMapData->m_pTiles[i] = 0;
@@ -1041,9 +1041,9 @@ int CCollision::GetIndex(vec2 PrevPos, vec2 Pos)
 	int Nx = 0;
 	int Ny = 0;
 
-	for(float f = 0; f < Distance; f++)
+	for(int i = 0, id = (int)ceilf(Distance); i < id; i++)
 	{
-		a = f / Distance;
+		a = (float)i / Distance;
 		Tmp = mix(PrevPos, Pos, a);
 		Nx = clamp((int)Tmp.x / 32, 0, m_Width - 1);
 		Ny = clamp((int)Tmp.y / 32, 0, m_Height - 1);
@@ -1207,9 +1207,9 @@ int CCollision::IntersectNoLaser(vec2 Pos0, vec2 Pos1, vec2 *pOutCollision, vec2
 	float d = distance(Pos0, Pos1);
 	vec2 Last = Pos0;
 
-	for(float f = 0; f < d; f++)
+	for(int i = 0, id = (int)ceilf(d); i < id; i++)
 	{
-		float a = f / d;
+		float a = (int)i / d;
 		vec2 Pos = mix(Pos0, Pos1, a);
 		int Nx = clamp(round_to_int(Pos.x) / 32, 0, m_Width - 1);
 		int Ny = clamp(round_to_int(Pos.y) / 32, 0, m_Height - 1);
@@ -1238,9 +1238,9 @@ int CCollision::IntersectNoLaserNW(vec2 Pos0, vec2 Pos1, vec2 *pOutCollision, ve
 	float d = distance(Pos0, Pos1);
 	vec2 Last = Pos0;
 
-	for(float f = 0; f < d; f++)
+	for(int i = 0, id = (int)ceilf(d); i < id; i++)
 	{
-		float a = f / d;
+		float a = (float)i / d;
 		vec2 Pos = mix(Pos0, Pos1, a);
 		if(IsNoLaser(round_to_int(Pos.x), round_to_int(Pos.y)) || IsFNoLaser(round_to_int(Pos.x), round_to_int(Pos.y)))
 		{
@@ -1267,9 +1267,9 @@ int CCollision::IntersectAir(vec2 Pos0, vec2 Pos1, vec2 *pOutCollision, vec2 *pO
 	float d = distance(Pos0, Pos1);
 	vec2 Last = Pos0;
 
-	for(float f = 0; f < d; f++)
+	for(int i = 0, id = (int)ceilf(d); i < id; i++)
 	{
-		float a = f / d;
+		float a = (float)i / d;
 		vec2 Pos = mix(Pos0, Pos1, a);
 		if(IsSolid(round_to_int(Pos.x), round_to_int(Pos.y)) || (!GetTile(round_to_int(Pos.x), round_to_int(Pos.y)) && !GetFTile(round_to_int(Pos.x), round_to_int(Pos.y))))
 		{

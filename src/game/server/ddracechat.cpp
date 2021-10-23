@@ -38,7 +38,7 @@ void CGameContext::ConCredits(IConsole::IResult *pResult, void *pUserData)
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
 		"trafilaw, Zwelf, Patiga, Konsti, ElXreno, MikiGamer,");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
-		"Fireball & others.");
+		"Fireball, Banana090, axblk, yangfl & others.");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
 		"Based on DDRace by the DDRace developers,");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
@@ -267,12 +267,12 @@ void CGameContext::ConRules(IConsole::IResult *pResult, void *pUserData)
 		_RL(9),
 		_RL(10),
 	};
-	for(unsigned i = 0; i < sizeof(pRuleLines) / sizeof(pRuleLines[0]); i++)
+	for(auto &pRuleLine : pRuleLines)
 	{
-		if(pRuleLines[i][0])
+		if(pRuleLine[0])
 		{
 			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD,
-				"rules", pRuleLines[i]);
+				"rules", pRuleLine);
 			Printed = true;
 		}
 	}
@@ -931,7 +931,7 @@ void CGameContext::ConJoinTeam(IConsole::IResult *pResult, void *pUserData)
 				str_format(aBuf, sizeof(aBuf), "You are in team %d already", Team);
 				pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "join", aBuf);
 			}
-			else if(pPlayer->m_Last_Team + pSelf->Server()->TickSpeed() * g_Config.m_SvTeamChangeDelay > pSelf->Server()->Tick())
+			else if(pPlayer->m_Last_Team + (int64_t)pSelf->Server()->TickSpeed() * g_Config.m_SvTeamChangeDelay > pSelf->Server()->Tick())
 			{
 				pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "join",
 					"You can\'t change teams that fast!");
@@ -1085,7 +1085,7 @@ void CGameContext::ConEyeEmote(IConsole::IResult *pResult, void *pUserData)
 	}
 	else
 	{
-		if(pPlayer->m_LastEyeEmote + g_Config.m_SvEyeEmoteChangeDelay * pSelf->Server()->TickSpeed() >= pSelf->Server()->Tick())
+		if(pPlayer->m_LastEyeEmote + (int64_t)g_Config.m_SvEyeEmoteChangeDelay * pSelf->Server()->TickSpeed() >= pSelf->Server()->Tick())
 			return;
 
 		if(!str_comp(pResult->GetString(0), "angry"))
@@ -1108,7 +1108,7 @@ void CGameContext::ConEyeEmote(IConsole::IResult *pResult, void *pUserData)
 
 		int Duration = 1;
 		if(pResult->NumArguments() > 1)
-			Duration = pResult->GetInteger(1);
+			Duration = clamp(pResult->GetInteger(1), 1, 86400);
 
 		pPlayer->m_DefEmoteReset = pSelf->Server()->Tick() + Duration * pSelf->Server()->TickSpeed();
 		pPlayer->m_LastEyeEmote = pSelf->Server()->Tick();

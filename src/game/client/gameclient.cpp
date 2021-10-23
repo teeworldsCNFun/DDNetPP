@@ -18,6 +18,7 @@
 #include <engine/updater.h>
 
 #include <game/generated/client_data.h>
+#include <game/generated/client_data7.h>
 #include <game/generated/protocol.h>
 
 #include <base/math.h>
@@ -176,7 +177,6 @@ void CGameClient::OnConsoleInit()
 	m_All.Add(m_pCountryFlags);
 	m_All.Add(m_pMapimages);
 	m_All.Add(m_pEffects); // doesn't render anything, just updates effects
-	m_All.Add(m_pParticles);
 	m_All.Add(m_pBinds);
 	m_All.Add(&m_pBinds->m_SpecialBinds);
 	m_All.Add(m_pControls);
@@ -244,6 +244,7 @@ void CGameClient::OnConsoleInit()
 	Console()->Register("remove_vote", "s[name]", CFGFLAG_SERVER, 0, 0, "remove a voting option");
 	Console()->Register("force_vote", "s[name] s[command] ?r[reason]", CFGFLAG_SERVER, 0, 0, "Force a voting option");
 	Console()->Register("clear_votes", "", CFGFLAG_SERVER, 0, 0, "Clears the voting options");
+	Console()->Register("add_map_votes", "", CFGFLAG_SERVER, 0, 0, "Automatically adds voting options for all maps");
 	Console()->Register("vote", "r['yes'|'no']", CFGFLAG_SERVER, 0, 0, "Force a vote to yes/no");
 	Console()->Register("swap_teams", "", CFGFLAG_SERVER, 0, 0, "Swap the current teams");
 	Console()->Register("shuffle_teams", "", CFGFLAG_SERVER, 0, 0, "Shuffle the current teams");
@@ -292,8 +293,8 @@ void CGameClient::OnInit()
 
 	// propagate pointers
 	m_UI.SetGraphics(Graphics(), TextRender());
-	m_RenderTools.m_pGraphics = Graphics();
-	m_RenderTools.m_pUI = UI();
+
+	m_RenderTools.Init(Graphics(), UI(), this);
 
 	int64 Start = time_get();
 
@@ -321,6 +322,10 @@ void CGameClient::OnInit()
 		m_All.m_paComponents[i]->OnInit();
 
 	char aBuf[256];
+
+	m_GameSkinLoaded = false;
+	m_ParticlesSkinLoaded = false;
+	m_EmoticonsSkinLoaded = false;
 
 	// setup load amount// load textures
 	for(int i = 0; i < g_pData->m_NumImages; i++)
@@ -519,8 +524,8 @@ void CGameClient::OnConnected()
 	m_GameWorld.Clear();
 	m_GameWorld.m_WorldConfig.m_InfiniteAmmo = true;
 	m_PredictedDummyID = -1;
-	for(int i = 0; i < MAX_CLIENTS; i++)
-		m_aLastWorldCharacters[i].m_Alive = false;
+	for(auto &LastWorldCharacter : m_aLastWorldCharacters)
+		LastWorldCharacter.m_Alive = false;
 	LoadMapSettings();
 
 	if(Client()->State() != IClient::STATE_DEMOPLAYBACK && g_Config.m_ClAutoDemoOnConnect)
@@ -534,8 +539,8 @@ void CGameClient::OnReset()
 
 	InvalidateSnapshot();
 
-	for(int i = 0; i < MAX_CLIENTS; i++)
-		m_aClients[i].Reset();
+	for(auto &Client : m_aClients)
+		Client.Reset();
 
 	for(int i = 0; i < m_All.m_Num; i++)
 		m_All.m_paComponents[i]->OnReset();
@@ -943,6 +948,7 @@ void CGameClient::OnWindowResize()
 	for(int i = 0; i < m_All.m_Num; i++)
 		m_All.m_paComponents[i]->OnWindowResize();
 
+	UI()->OnWindowResize();
 	TextRender()->OnWindowResize();
 }
 
@@ -950,6 +956,11 @@ void CGameClient::OnWindowResizeCB(void *pUser)
 {
 	CGameClient *pClient = (CGameClient *)pUser;
 	pClient->OnWindowResize();
+}
+
+void CGameClient::OnLanguageChange()
+{
+	UI()->OnLanguageChange();
 }
 
 void CGameClient::OnRconType(bool UsernameReq)
@@ -1197,9 +1208,9 @@ void CGameClient::OnNewSnapshot()
 
 	bool FoundGameInfoEx = false;
 
-	for(int i = 0; i < MAX_CLIENTS; i++)
+	for(auto &Client : m_aClients)
 	{
-		m_aClients[i].m_SpecCharPresent = false;
+		Client.m_SpecCharPresent = false;
 	}
 
 	// go trough all the items in the snapshot and gather the info we want
@@ -1230,7 +1241,7 @@ void CGameClient::OnNewSnapshot()
 					pClient->m_ColorFeet = pInfo->m_ColorFeet;
 
 					// prepare the info
-					if(!m_GameInfo.m_AllowXSkins && (pClient->m_aSkinName[0] == 'x' || pClient->m_aSkinName[1] == '_'))
+					if(!m_GameInfo.m_AllowXSkins && (pClient->m_aSkinName[0] == 'x' && pClient->m_aSkinName[1] == '_'))
 						str_copy(pClient->m_aSkinName, "default", 64);
 
 					pClient->m_SkinInfo.m_ColorBody = color_cast<ColorRGBA>(ColorHSLA(pClient->m_ColorBody).UnclampLighting());
@@ -1238,13 +1249,15 @@ void CGameClient::OnNewSnapshot()
 					pClient->m_SkinInfo.m_Size = 64;
 
 					// find new skin
-					pClient->m_SkinID = g_GameClient.m_pSkins->Find(pClient->m_aSkinName);
+					const CSkin *pSkin = m_pSkins->Get(m_pSkins->Find(pClient->m_aSkinName));
+					pClient->m_SkinInfo.m_OriginalRenderSkin = pSkin->m_OriginalSkin;
+					pClient->m_SkinInfo.m_ColorableRenderSkin = pSkin->m_ColorableSkin;
+					pClient->m_SkinInfo.m_SkinMetrics = pSkin->m_Metrics;
+					pClient->m_SkinInfo.m_BloodColor = pSkin->m_BloodColor;
+					pClient->m_SkinInfo.m_CustomColoredSkin = pClient->m_UseCustomColor;
 
-					if(pClient->m_UseCustomColor)
-						pClient->m_SkinInfo.m_Texture = g_GameClient.m_pSkins->Get(pClient->m_SkinID)->m_ColorTexture;
-					else
+					if(!pClient->m_UseCustomColor)
 					{
-						pClient->m_SkinInfo.m_Texture = g_GameClient.m_pSkins->Get(pClient->m_SkinID)->m_OrgTexture;
 						pClient->m_SkinInfo.m_ColorBody = ColorRGBA(1, 1, 1);
 						pClient->m_SkinInfo.m_ColorFeet = ColorRGBA(1, 1, 1);
 					}
@@ -1923,7 +1936,7 @@ void CGameClient::CClientData::UpdateRenderInfo()
 	// force team colors
 	if(g_GameClient.m_Snap.m_pGameInfoObj && g_GameClient.m_Snap.m_pGameInfoObj->m_GameFlags & GAMEFLAG_TEAMS)
 	{
-		m_RenderInfo.m_Texture = g_GameClient.m_pSkins->Get(m_SkinID)->m_ColorTexture;
+		m_RenderInfo.m_CustomColoredSkin = true;
 		const int TeamColors[2] = {65461, 10223541};
 		if(m_Team >= TEAM_RED && m_Team <= TEAM_BLUE)
 		{
@@ -1943,7 +1956,6 @@ void CGameClient::CClientData::Reset()
 	m_aName[0] = 0;
 	m_aClan[0] = 0;
 	m_Country = -1;
-	m_SkinID = -1;
 	m_Team = 0;
 	m_Angle = 0;
 	m_Emoticon = 0;
@@ -1957,9 +1969,13 @@ void CGameClient::CClientData::Reset()
 	m_Afk = false;
 	m_Paused = false;
 	m_Spec = false;
-	m_SkinInfo.m_Texture = g_GameClient.m_pSkins->Get(-1)->m_OrgTexture;
+	m_SkinInfo.m_BloodColor = ColorRGBA(1, 1, 1);
+	m_SkinInfo.m_ColorableRenderSkin.Reset();
+	m_SkinInfo.m_OriginalRenderSkin.Reset();
+	m_SkinInfo.m_CustomColoredSkin = false;
 	m_SkinInfo.m_ColorBody = ColorRGBA(1, 1, 1);
 	m_SkinInfo.m_ColorFeet = ColorRGBA(1, 1, 1);
+	m_SkinInfo.m_SkinMetrics.Reset();
 
 	m_Solo = false;
 	m_Jetpack = false;
@@ -2153,14 +2169,17 @@ int CGameClient::IntersectCharacter(vec2 HookPos, vec2 NewPos, vec2 &NewPos2, in
 		if(!IsOneSuper && (!m_Teams.SameTeam(i, ownID) || IsOneSolo || OwnClientData.m_NoHookHit))
 			continue;
 
-		vec2 ClosestPoint = closest_point_on_line(HookPos, NewPos, Position);
-		if(distance(Position, ClosestPoint) < PhysSize + 2.0f)
+		vec2 ClosestPoint;
+		if(closest_point_on_line(HookPos, NewPos, Position, ClosestPoint))
 		{
-			if(ClosestID == -1 || distance(HookPos, Position) < Distance)
+			if(distance(Position, ClosestPoint) < PhysSize + 2.0f)
 			{
-				NewPos2 = ClosestPoint;
-				ClosestID = i;
-				Distance = distance(HookPos, Position);
+				if(ClosestID == -1 || distance(HookPos, Position) < Distance)
+				{
+					NewPos2 = ClosestPoint;
+					ClosestID = i;
+					Distance = distance(HookPos, Position);
+				}
 			}
 		}
 	}
@@ -2200,6 +2219,13 @@ void CGameClient::UpdatePrediction()
 	else
 		m_GameWorld.TuningList()[TuneZone] = m_GameWorld.m_Core.m_Tuning[g_Config.m_ClDummy] = m_Tuning[g_Config.m_ClDummy];
 
+	// if ddnetcharacter is available, ignore server-wide tunings for hook and collision
+	if(m_Snap.m_aCharacters[m_Snap.m_LocalClientID].m_HasExtendedData)
+	{
+		m_GameWorld.m_Tuning[g_Config.m_ClDummy].m_PlayerCollision = 1;
+		m_GameWorld.m_Tuning[g_Config.m_ClDummy].m_PlayerHooking = 1;
+	}
+
 	// restore characters from previously saved ones if they temporarily left the snapshot
 	for(int i = 0; i < MAX_CLIENTS; i++)
 		if(m_aLastWorldCharacters[i].IsAlive() && m_Snap.m_aCharacters[i].m_Active && !m_GameWorld.GetCharacterByID(i))
@@ -2226,14 +2252,14 @@ void CGameClient::UpdatePrediction()
 		if(m_Snap.m_aCharacters[m_Snap.m_LocalClientID].m_HasExtendedData)
 		{
 			int aIDs[MAX_CLIENTS];
-			for(int i = 0; i < MAX_CLIENTS; i++)
-				aIDs[i] = -1;
+			for(int &ID : aIDs)
+				ID = -1;
 			for(int i = 0; i < MAX_CLIENTS; i++)
 				if(CCharacter *pChar = m_GameWorld.GetCharacterByID(i))
 					aIDs[pChar->GetStrongWeakID()] = i;
-			for(int i = 0; i < MAX_CLIENTS; i++)
-				if(aIDs[i] >= 0)
-					m_CharOrder.GiveStrong(aIDs[i]);
+			for(int ID : aIDs)
+				if(ID >= 0)
+					m_CharOrder.GiveStrong(ID);
 		}
 		else
 		{
@@ -2514,10 +2540,99 @@ bool CGameClient::IsOtherTeam(int ClientID)
 
 void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 {
-	if(g_pData->m_aImages[IMAGE_GAME].m_Id != -1)
+	if(m_GameSkinLoaded)
 	{
-		Graphics()->UnloadTexture(g_pData->m_aImages[IMAGE_GAME].m_Id);
-		g_pData->m_aImages[IMAGE_GAME].m_Id = IGraphics::CTextureHandle();
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteHealthFull);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteHealthEmpty);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteArmorFull);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteArmorEmpty);
+
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponHammerCursor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGunCursor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponShotgunCursor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGrenadeCursor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponNinjaCursor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponLaserCursor);
+
+		for(auto &SpriteWeaponCursor : m_GameSkin.m_SpriteWeaponCursors)
+		{
+			SpriteWeaponCursor = IGraphics::CTextureHandle();
+		}
+
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteHookChain);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteHookHead);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponHammer);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGun);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponShotgun);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGrenade);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponNinja);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponLaser);
+
+		for(auto &SpriteWeapon : m_GameSkin.m_SpriteWeapons)
+		{
+			SpriteWeapon = IGraphics::CTextureHandle();
+		}
+
+		for(auto &SpriteParticle : m_GameSkin.m_SpriteParticles)
+		{
+			Graphics()->UnloadTextureNew(SpriteParticle);
+		}
+
+		for(auto &SpriteStar : m_GameSkin.m_SpriteStars)
+		{
+			Graphics()->UnloadTextureNew(SpriteStar);
+		}
+
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGunProjectile);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponShotgunProjectile);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGrenadeProjectile);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponHammerProjectile);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponNinjaProjectile);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponLaserProjectile);
+
+		for(auto &SpriteWeaponProjectile : m_GameSkin.m_SpriteWeaponProjectiles)
+		{
+			SpriteWeaponProjectile = IGraphics::CTextureHandle();
+		}
+
+		for(int i = 0; i < 3; ++i)
+		{
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponGunMuzzles[i]);
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponShotgunMuzzles[i]);
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteWeaponNinjaMuzzles[i]);
+
+			for(auto &SpriteWeaponsMuzzle : m_GameSkin.m_SpriteWeaponsMuzzles)
+			{
+				SpriteWeaponsMuzzle[i] = IGraphics::CTextureHandle();
+			}
+		}
+
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupHealth);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupArmor);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupGrenade);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupShotgun);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupLaser);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupNinja);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupGun);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpritePickupHammer);
+
+		for(auto &SpritePickupWeapon : m_GameSkin.m_SpritePickupWeapons)
+		{
+			SpritePickupWeapon = IGraphics::CTextureHandle();
+		}
+
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteFlagBlue);
+		Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteFlagRed);
+
+		if(m_GameSkin.IsSixup())
+		{
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteNinjaBarFullLeft);
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteNinjaBarFull);
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteNinjaBarEmpty);
+			Graphics()->UnloadTextureNew(m_GameSkin.m_SpriteNinjaBarEmptyRight);
+		}
+
+		m_GameSkinLoaded = false;
 	}
 
 	char aPath[MAX_PATH_LENGTH];
@@ -2546,17 +2661,131 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 	}
 	else if(PngLoaded)
 	{
-		g_pData->m_aImages[IMAGE_GAME].m_Id = Graphics()->LoadTextureRaw(ImgInfo.m_Width, ImgInfo.m_Height, ImgInfo.m_Format, ImgInfo.m_pData, ImgInfo.m_Format, 0, aPath);
+		m_GameSkin.m_SpriteHealthFull = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_FULL]);
+		m_GameSkin.m_SpriteHealthEmpty = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_EMPTY]);
+		m_GameSkin.m_SpriteArmorFull = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_ARMOR_FULL]);
+		m_GameSkin.m_SpriteArmorEmpty = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_ARMOR_EMPTY]);
+
+		m_GameSkin.m_SpriteWeaponHammerCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_HAMMER_CURSOR]);
+		m_GameSkin.m_SpriteWeaponGunCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GUN_CURSOR]);
+		m_GameSkin.m_SpriteWeaponShotgunCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_SHOTGUN_CURSOR]);
+		m_GameSkin.m_SpriteWeaponGrenadeCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GRENADE_CURSOR]);
+		m_GameSkin.m_SpriteWeaponNinjaCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_NINJA_CURSOR]);
+		m_GameSkin.m_SpriteWeaponLaserCursor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_LASER_CURSOR]);
+
+		m_GameSkin.m_SpriteWeaponCursors[0] = m_GameSkin.m_SpriteWeaponHammerCursor;
+		m_GameSkin.m_SpriteWeaponCursors[1] = m_GameSkin.m_SpriteWeaponGunCursor;
+		m_GameSkin.m_SpriteWeaponCursors[2] = m_GameSkin.m_SpriteWeaponShotgunCursor;
+		m_GameSkin.m_SpriteWeaponCursors[3] = m_GameSkin.m_SpriteWeaponGrenadeCursor;
+		m_GameSkin.m_SpriteWeaponCursors[4] = m_GameSkin.m_SpriteWeaponLaserCursor;
+		m_GameSkin.m_SpriteWeaponCursors[5] = m_GameSkin.m_SpriteWeaponNinjaCursor;
+
+		// weapons and hook
+		m_GameSkin.m_SpriteHookChain = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HOOK_CHAIN]);
+		m_GameSkin.m_SpriteHookHead = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HOOK_HEAD]);
+		m_GameSkin.m_SpriteWeaponHammer = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_HAMMER_BODY]);
+		m_GameSkin.m_SpriteWeaponGun = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GUN_BODY]);
+		m_GameSkin.m_SpriteWeaponShotgun = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_SHOTGUN_BODY]);
+		m_GameSkin.m_SpriteWeaponGrenade = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GRENADE_BODY]);
+		m_GameSkin.m_SpriteWeaponNinja = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_NINJA_BODY]);
+		m_GameSkin.m_SpriteWeaponLaser = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_LASER_BODY]);
+
+		m_GameSkin.m_SpriteWeapons[0] = m_GameSkin.m_SpriteWeaponHammer;
+		m_GameSkin.m_SpriteWeapons[1] = m_GameSkin.m_SpriteWeaponGun;
+		m_GameSkin.m_SpriteWeapons[2] = m_GameSkin.m_SpriteWeaponShotgun;
+		m_GameSkin.m_SpriteWeapons[3] = m_GameSkin.m_SpriteWeaponGrenade;
+		m_GameSkin.m_SpriteWeapons[4] = m_GameSkin.m_SpriteWeaponLaser;
+		m_GameSkin.m_SpriteWeapons[5] = m_GameSkin.m_SpriteWeaponNinja;
+
+		// particles
+		for(int i = 0; i < 9; ++i)
+		{
+			m_GameSkin.m_SpriteParticles[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART1 + i]);
+		}
+
+		// stars
+		for(int i = 0; i < 3; ++i)
+		{
+			m_GameSkin.m_SpriteStars[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_STAR1 + i]);
+		}
+
+		// projectiles
+		m_GameSkin.m_SpriteWeaponGunProjectile = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GUN_PROJ]);
+		m_GameSkin.m_SpriteWeaponShotgunProjectile = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_SHOTGUN_PROJ]);
+		m_GameSkin.m_SpriteWeaponGrenadeProjectile = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GRENADE_PROJ]);
+
+		// these weapons have no projectiles
+		m_GameSkin.m_SpriteWeaponHammerProjectile = IGraphics::CTextureHandle();
+		m_GameSkin.m_SpriteWeaponNinjaProjectile = IGraphics::CTextureHandle();
+
+		m_GameSkin.m_SpriteWeaponLaserProjectile = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_LASER_PROJ]);
+
+		m_GameSkin.m_SpriteWeaponProjectiles[0] = m_GameSkin.m_SpriteWeaponHammerProjectile;
+		m_GameSkin.m_SpriteWeaponProjectiles[1] = m_GameSkin.m_SpriteWeaponGunProjectile;
+		m_GameSkin.m_SpriteWeaponProjectiles[2] = m_GameSkin.m_SpriteWeaponShotgunProjectile;
+		m_GameSkin.m_SpriteWeaponProjectiles[3] = m_GameSkin.m_SpriteWeaponGrenadeProjectile;
+		m_GameSkin.m_SpriteWeaponProjectiles[4] = m_GameSkin.m_SpriteWeaponLaserProjectile;
+		m_GameSkin.m_SpriteWeaponProjectiles[5] = m_GameSkin.m_SpriteWeaponNinjaProjectile;
+
+		// muzzles
+		for(int i = 0; i < 3; ++i)
+		{
+			m_GameSkin.m_SpriteWeaponGunMuzzles[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_GUN_MUZZLE1 + i]);
+			m_GameSkin.m_SpriteWeaponShotgunMuzzles[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_SHOTGUN_MUZZLE1 + i]);
+			m_GameSkin.m_SpriteWeaponNinjaMuzzles[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_WEAPON_NINJA_MUZZLE1 + i]);
+
+			m_GameSkin.m_SpriteWeaponsMuzzles[1][i] = m_GameSkin.m_SpriteWeaponGunMuzzles[i];
+			m_GameSkin.m_SpriteWeaponsMuzzles[2][i] = m_GameSkin.m_SpriteWeaponShotgunMuzzles[i];
+			m_GameSkin.m_SpriteWeaponsMuzzles[5][i] = m_GameSkin.m_SpriteWeaponNinjaMuzzles[i];
+		}
+
+		// pickups
+		m_GameSkin.m_SpritePickupHealth = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_HEALTH]);
+		m_GameSkin.m_SpritePickupArmor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR]);
+		m_GameSkin.m_SpritePickupGrenade = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_GRENADE]);
+		m_GameSkin.m_SpritePickupShotgun = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_SHOTGUN]);
+		m_GameSkin.m_SpritePickupLaser = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_LASER]);
+		m_GameSkin.m_SpritePickupNinja = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_NINJA]);
+		m_GameSkin.m_SpritePickupGun = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_GUN]);
+		m_GameSkin.m_SpritePickupHammer = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_HAMMER]);
+
+		m_GameSkin.m_SpritePickupWeapons[0] = m_GameSkin.m_SpritePickupHammer;
+		m_GameSkin.m_SpritePickupWeapons[1] = m_GameSkin.m_SpritePickupGun;
+		m_GameSkin.m_SpritePickupWeapons[2] = m_GameSkin.m_SpritePickupShotgun;
+		m_GameSkin.m_SpritePickupWeapons[3] = m_GameSkin.m_SpritePickupGrenade;
+		m_GameSkin.m_SpritePickupWeapons[4] = m_GameSkin.m_SpritePickupLaser;
+		m_GameSkin.m_SpritePickupWeapons[5] = m_GameSkin.m_SpritePickupNinja;
+
+		// flags
+		m_GameSkin.m_SpriteFlagBlue = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_FLAG_BLUE]);
+		m_GameSkin.m_SpriteFlagRed = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_FLAG_RED]);
+
+		// ninja bar (0.7)
+		if(!Graphics()->IsSpriteTextureFullyTransparent(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_FULL_LEFT]) ||
+			!Graphics()->IsSpriteTextureFullyTransparent(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_FULL]) ||
+			!Graphics()->IsSpriteTextureFullyTransparent(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_EMPTY]) ||
+			!Graphics()->IsSpriteTextureFullyTransparent(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_EMPTY_RIGHT]))
+		{
+			m_GameSkin.m_SpriteNinjaBarFullLeft = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_FULL_LEFT]);
+			m_GameSkin.m_SpriteNinjaBarFull = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_FULL]);
+			m_GameSkin.m_SpriteNinjaBarEmpty = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_EMPTY]);
+			m_GameSkin.m_SpriteNinjaBarEmptyRight = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_NINJA_BAR_EMPTY_RIGHT]);
+		}
+
+		m_GameSkinLoaded = true;
+
 		free(ImgInfo.m_pData);
 	}
 }
 
 void CGameClient::LoadEmoticonsSkin(const char *pPath, bool AsDir)
 {
-	if(g_pData->m_aImages[IMAGE_EMOTICONS].m_Id != -1)
+	if(m_EmoticonsSkinLoaded)
 	{
-		Graphics()->UnloadTexture(g_pData->m_aImages[IMAGE_EMOTICONS].m_Id);
-		g_pData->m_aImages[IMAGE_EMOTICONS].m_Id = IGraphics::CTextureHandle();
+		for(auto &SpriteEmoticon : m_EmoticonsSkin.m_SpriteEmoticons)
+			Graphics()->UnloadTextureNew(SpriteEmoticon);
+
+		m_EmoticonsSkinLoaded = false;
 	}
 
 	char aPath[MAX_PATH_LENGTH];
@@ -2585,17 +2814,32 @@ void CGameClient::LoadEmoticonsSkin(const char *pPath, bool AsDir)
 	}
 	else if(PngLoaded)
 	{
-		g_pData->m_aImages[IMAGE_EMOTICONS].m_Id = Graphics()->LoadTextureRaw(ImgInfo.m_Width, ImgInfo.m_Height, ImgInfo.m_Format, ImgInfo.m_pData, ImgInfo.m_Format, 0, aPath);
+		for(int i = 0; i < 16; ++i)
+			m_EmoticonsSkin.m_SpriteEmoticons[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_OOP + i]);
+
+		m_EmoticonsSkinLoaded = true;
 		free(ImgInfo.m_pData);
 	}
 }
 
 void CGameClient::LoadParticlesSkin(const char *pPath, bool AsDir)
 {
-	if(g_pData->m_aImages[IMAGE_PARTICLES].m_Id != -1)
+	if(m_ParticlesSkinLoaded)
 	{
-		Graphics()->UnloadTexture(g_pData->m_aImages[IMAGE_PARTICLES].m_Id);
-		g_pData->m_aImages[IMAGE_PARTICLES].m_Id = IGraphics::CTextureHandle();
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleSlice);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleBall);
+		for(auto &SpriteParticleSplat : m_ParticlesSkin.m_SpriteParticleSplat)
+			Graphics()->UnloadTextureNew(SpriteParticleSplat);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleSmoke);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleShell);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleExpl);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleAirJump);
+		Graphics()->UnloadTextureNew(m_ParticlesSkin.m_SpriteParticleHit);
+
+		for(auto &SpriteParticle : m_ParticlesSkin.m_SpriteParticles)
+			SpriteParticle = IGraphics::CTextureHandle();
+
+		m_ParticlesSkinLoaded = false;
 	}
 
 	char aPath[MAX_PATH_LENGTH];
@@ -2624,9 +2868,48 @@ void CGameClient::LoadParticlesSkin(const char *pPath, bool AsDir)
 	}
 	else if(PngLoaded)
 	{
-		g_pData->m_aImages[IMAGE_PARTICLES].m_Id = Graphics()->LoadTextureRaw(ImgInfo.m_Width, ImgInfo.m_Height, ImgInfo.m_Format, ImgInfo.m_pData, ImgInfo.m_Format, 0, aPath);
+		m_ParticlesSkin.m_SpriteParticleSlice = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SLICE]);
+		m_ParticlesSkin.m_SpriteParticleBall = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_BALL]);
+		for(int i = 0; i < 3; ++i)
+			m_ParticlesSkin.m_SpriteParticleSplat[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SPLAT01 + i]);
+		m_ParticlesSkin.m_SpriteParticleSmoke = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SMOKE]);
+		m_ParticlesSkin.m_SpriteParticleShell = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SHELL]);
+		m_ParticlesSkin.m_SpriteParticleExpl = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_EXPL01]);
+		m_ParticlesSkin.m_SpriteParticleAirJump = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_AIRJUMP]);
+		m_ParticlesSkin.m_SpriteParticleHit = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_HIT01]);
+
+		m_ParticlesSkin.m_SpriteParticles[0] = m_ParticlesSkin.m_SpriteParticleSlice;
+		m_ParticlesSkin.m_SpriteParticles[1] = m_ParticlesSkin.m_SpriteParticleBall;
+		for(int i = 0; i < 3; ++i)
+			m_ParticlesSkin.m_SpriteParticles[2 + i] = m_ParticlesSkin.m_SpriteParticleSplat[i];
+		m_ParticlesSkin.m_SpriteParticles[5] = m_ParticlesSkin.m_SpriteParticleSmoke;
+		m_ParticlesSkin.m_SpriteParticles[6] = m_ParticlesSkin.m_SpriteParticleShell;
+		m_ParticlesSkin.m_SpriteParticles[7] = m_ParticlesSkin.m_SpriteParticleExpl;
+		m_ParticlesSkin.m_SpriteParticles[8] = m_ParticlesSkin.m_SpriteParticleAirJump;
+		m_ParticlesSkin.m_SpriteParticles[9] = m_ParticlesSkin.m_SpriteParticleHit;
+
+		m_ParticlesSkinLoaded = true;
 		free(ImgInfo.m_pData);
 	}
+}
+
+void CGameClient::RefindSkins()
+{
+	for(auto &Client : m_aClients)
+	{
+		Client.m_SkinInfo.m_OriginalRenderSkin.Reset();
+		Client.m_SkinInfo.m_ColorableRenderSkin.Reset();
+		if(Client.m_aSkinName[0] != '\0')
+		{
+			const CSkin *pSkin = m_pSkins->Get(m_pSkins->Find(Client.m_aSkinName));
+			Client.m_SkinInfo.m_OriginalRenderSkin = pSkin->m_OriginalSkin;
+			Client.m_SkinInfo.m_ColorableRenderSkin = pSkin->m_ColorableSkin;
+			Client.UpdateRenderInfo();
+		}
+	}
+	m_pGhost->RefindSkin();
+	m_pChat->RefindSkins();
+	gs_KillMessages.RefindSkins();
 }
 
 void CGameClient::LoadMapSettings()
@@ -2663,7 +2946,7 @@ void CGameClient::LoadMapSettings()
 		int Size = pMap->GetDataSize(pItem->m_Settings);
 		char *pSettings = (char *)pMap->GetData(pItem->m_Settings);
 		char *pNext = pSettings;
-		dbg_msg("New tune ", "%s", pNext);
+		dbg_msg("tune", "%s", pNext);
 		while(pNext < pSettings + Size)
 		{
 			int StrSize = str_length(pNext) + 1;

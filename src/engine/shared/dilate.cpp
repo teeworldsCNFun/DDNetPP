@@ -29,7 +29,10 @@ static void Dilate(int w, int h, int BPP, unsigned char *pSrc, unsigned char *pD
 				if(pSrc[k + AlphaCompIndex] > AlphaThreshold)
 				{
 					for(int p = 0; p < BPP - 1; ++p)
-						SumOfOpaque[p] += pSrc[k + p];
+						// Seems safe for BPP = 3, 4 which we use. clang-analyzer seems to
+						// asssume being called with larger value. TODO: Can make this
+						// safer anyway.
+						SumOfOpaque[p] += pSrc[k + p]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
 					++Counter;
 					break;
 				}
@@ -66,8 +69,8 @@ void DilateImage(unsigned char *pImageBuff, int w, int h, int BPP)
 {
 	unsigned char *pBuffer[2] = {NULL, NULL};
 
-	pBuffer[0] = (unsigned char *)malloc(w * h * sizeof(unsigned char) * BPP);
-	pBuffer[1] = (unsigned char *)malloc(w * h * sizeof(unsigned char) * BPP);
+	pBuffer[0] = (unsigned char *)malloc((size_t)w * h * sizeof(unsigned char) * BPP);
+	pBuffer[1] = (unsigned char *)malloc((size_t)w * h * sizeof(unsigned char) * BPP);
 
 	unsigned char *pPixelBuff = (unsigned char *)pImageBuff;
 

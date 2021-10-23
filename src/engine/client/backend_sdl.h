@@ -4,6 +4,7 @@
 #include "SDL.h"
 #include "SDL_opengl.h"
 
+#include "blocklist_driver.h"
 #include "graphics_threaded.h"
 
 #include <base/tl/threading.h>
@@ -103,7 +104,7 @@ class CGLSLPrimitiveProgram;
 class CGLSLQuadProgram;
 class CGLSLTileProgram;
 class CGLSLTextProgram;
-class CGLSLSpriteProgram;
+class CGLSLPrimitiveExProgram;
 class CGLSLSpriteMultipleProgram;
 
 // takes care of opengl related rendering
@@ -206,7 +207,7 @@ protected:
 	virtual void Cmd_RenderText(const CCommandBuffer::SCommand_RenderText *pCommand) {}
 	virtual void Cmd_RenderTextStream(const CCommandBuffer::SCommand_RenderTextStream *pCommand) {}
 	virtual void Cmd_RenderQuadContainer(const CCommandBuffer::SCommand_RenderQuadContainer *pCommand) {}
-	virtual void Cmd_RenderQuadContainerAsSprite(const CCommandBuffer::SCommand_RenderQuadContainerAsSprite *pCommand) {}
+	virtual void Cmd_RenderQuadContainerEx(const CCommandBuffer::SCommand_RenderQuadContainerEx *pCommand) {}
 	virtual void Cmd_RenderQuadContainerAsSpriteMultiple(const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *pCommand) {}
 
 public:
@@ -317,7 +318,8 @@ class CCommandProcessorFragment_OpenGL3_3 : public CCommandProcessorFragment_Ope
 	CGLSLQuadProgram *m_pQuadProgram;
 	CGLSLQuadProgram *m_pQuadProgramTextured;
 	CGLSLTextProgram *m_pTextProgram;
-	CGLSLSpriteProgram *m_pSpriteProgram;
+	CGLSLPrimitiveExProgram *m_pPrimitiveExProgram;
+	CGLSLPrimitiveExProgram *m_pPrimitiveExProgramTextured;
 	CGLSLSpriteMultipleProgram *m_pSpriteProgramMultiple;
 
 	GLuint m_LastProgramID;
@@ -388,7 +390,7 @@ protected:
 	void Cmd_RenderText(const CCommandBuffer::SCommand_RenderText *pCommand) override;
 	void Cmd_RenderTextStream(const CCommandBuffer::SCommand_RenderTextStream *pCommand) override;
 	void Cmd_RenderQuadContainer(const CCommandBuffer::SCommand_RenderQuadContainer *pCommand) override;
-	void Cmd_RenderQuadContainerAsSprite(const CCommandBuffer::SCommand_RenderQuadContainerAsSprite *pCommand) override;
+	void Cmd_RenderQuadContainerEx(const CCommandBuffer::SCommand_RenderQuadContainerEx *pCommand) override;
 	void Cmd_RenderQuadContainerAsSpriteMultiple(const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *pCommand) override;
 
 public:
@@ -417,6 +419,8 @@ public:
 		SDL_Window *m_pWindow;
 		SDL_GLContext m_GLContext;
 		SBackendCapabilites *m_pCapabilities;
+
+		const char **m_pErrStringPtr;
 
 		int *m_pInitError;
 
@@ -486,6 +490,8 @@ class CGraphicsBackend_SDL_OpenGL : public CGraphicsBackend_Threaded
 
 	bool m_UseNewOpenGL;
 
+	char m_aErrorString[256];
+
 public:
 	virtual int Init(const char *pName, int *Screen, int *pWidth, int *pHeight, int FsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, class IStorage *pStorage);
 	virtual int Shutdown();
@@ -511,6 +517,14 @@ public:
 	virtual bool HasTextBuffering() { return m_Capabilites.m_TextBuffering; }
 	virtual bool HasQuadContainerBuffering() { return m_Capabilites.m_QuadContainerBuffering; }
 	virtual bool Has2DTextureArrays() { return m_Capabilites.m_2DArrayTextures; }
+
+	virtual const char *GetErrorString()
+	{
+		if(m_aErrorString[0] != '\0')
+			return m_aErrorString;
+
+		return NULL;
+	}
 };
 
 #endif // ENGINE_CLIENT_BACKEND_SDL_H

@@ -611,6 +611,9 @@ endif()
 
 set(EXPECTED_DATA
   arrow.png
+  assets/entities/comfort/ddnet.png
+  assets/entities/license.txt
+  assets/game/game_06.png
   audio/foley_body_impact-01.wv
   audio/foley_body_impact-02.wv
   audio/foley_body_impact-03.wv
@@ -1190,10 +1193,10 @@ set(EXPECTED_DATA
   shader/pipeline.vert
   shader/prim.frag
   shader/prim.vert
+  shader/primex.frag
+  shader/primex.vert
   shader/quad.frag
   shader/quad.vert
-  shader/sprite.frag
-  shader/sprite.vert
   shader/spritemulti.frag
   shader/spritemulti.vert
   shader/text.frag
@@ -1202,7 +1205,6 @@ set(EXPECTED_DATA
   shader/tile.vert
   skins/Aoe4leg.png
   skins/PaladiN.png
-  skins/Terrorist.png
   skins/antiantey.png
   skins/beast.png
   skins/blacktee.png
@@ -1427,6 +1429,13 @@ generate_source7("src/game/generated/protocol7.h" "network_header")
 
 generate_maps("src/game/generated/protocolglue.h")
 
+add_custom_command(OUTPUT "src/game/generated/wordlist.h"
+  COMMAND ${PYTHON_EXECUTABLE} scripts/wordlist.py > ${PROJECT_BINARY_DIR}/src/game/generated/wordlist.h
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  DEPENDS
+    scripts/wordlist.py
+)
+
 ########################################################################
 # SHARED
 ########################################################################
@@ -1516,8 +1525,6 @@ set_src(ENGINE_SHARED GLOB src/engine/shared
   fifo.h
   filecollection.cpp
   filecollection.h
-  ghost.cpp
-  ghost.h
   global_uuid_manager.cpp
   huffman.cpp
   huffman.h
@@ -1655,12 +1662,16 @@ if(CLIENT)
   set_src(ENGINE_CLIENT GLOB_RECURSE src/engine/client
     backend_sdl.cpp
     backend_sdl.h
+    blocklist_driver.cpp
+    blocklist_driver.h
     client.cpp
     client.h
     demoedit.cpp
     demoedit.h
     friends.cpp
     friends.h
+    ghost.cpp
+    ghost.h
     graphics_threaded.cpp
     graphics_threaded.h
     http.cpp
@@ -1782,6 +1793,7 @@ if(CLIENT)
     render.cpp
     render.h
     render_map.cpp
+    skin.h
     ui.cpp
     ui.h
   )
@@ -2044,6 +2056,7 @@ if(SERVER)
   set(GAME_GENERATED_SERVER
     "src/game/generated/server_data.cpp"
     "src/game/generated/server_data.h"
+    "src/game/generated/wordlist.h"
   )
   set(SERVER_SRC ${ENGINE_SERVER} ${GAME_SERVER} ${GAME_GENERATED_SERVER})
   if(TARGET_OS STREQUAL "windows")

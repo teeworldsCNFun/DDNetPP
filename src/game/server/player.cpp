@@ -722,10 +722,10 @@ void CPlayer::SetTeam(int Team, bool DoChatMsg)
 	if(Team == TEAM_SPECTATORS)
 	{
 		// update spectator modes
-		for(int i = 0; i < MAX_CLIENTS; ++i)
+		for(auto &pPlayer : GameServer()->m_apPlayers)
 		{
-			if(GameServer()->m_apPlayers[i] && GameServer()->m_apPlayers[i]->m_SpectatorID == m_ClientID)
-				GameServer()->m_apPlayers[i]->m_SpectatorID = SPEC_FREEVIEW;
+			if(pPlayer && pPlayer->m_SpectatorID == m_ClientID)
+				pPlayer->m_SpectatorID = SPEC_FREEVIEW;
 		}
 	}
 }
@@ -811,7 +811,7 @@ bool CPlayer::AfkTimer(int NewTargetX, int NewTargetY)
 
 	if(NewTargetX != m_LastTarget_x || NewTargetY != m_LastTarget_y)
 	{
-		m_LastPlaytime = time_get();
+		UpdatePlaytime();
 		m_LastTarget_x = NewTargetX;
 		m_LastTarget_y = NewTargetY;
 		m_Sent1stAfkWarning = 0; // afk timer's 1st warning after 50% of sv_max_afk_time
@@ -850,6 +850,11 @@ bool CPlayer::AfkTimer(int NewTargetX, int NewTargetY)
 	return false;
 }
 
+void CPlayer::UpdatePlaytime()
+{
+	m_LastPlaytime = time_get();
+}
+
 void CPlayer::AfkVoteTimer(CNetObj_PlayerInput *NewTarget)
 {
 	if(g_Config.m_SvMaxAfkVoteTime == 0)
@@ -864,7 +869,7 @@ void CPlayer::AfkVoteTimer(CNetObj_PlayerInput *NewTarget)
 	}
 	else if(mem_comp(NewTarget, m_pLastTarget, sizeof(CNetObj_PlayerInput)) != 0)
 	{
-		m_LastPlaytime = time_get();
+		UpdatePlaytime();
 		mem_copy(m_pLastTarget, NewTarget, sizeof(CNetObj_PlayerInput));
 	}
 	else if(m_LastPlaytime < time_get() - time_freq() * g_Config.m_SvMaxAfkVoteTime)
@@ -910,7 +915,7 @@ int CPlayer::Pause(int State, bool Force)
 		case PAUSE_NONE:
 			if(m_pCharacter->IsPaused()) // First condition might be unnecessary
 			{
-				if(!Force && m_LastPause && m_LastPause + g_Config.m_SvSpecFrequency * Server()->TickSpeed() > Server()->Tick())
+				if(!Force && m_LastPause && m_LastPause + (int64_t)g_Config.m_SvSpecFrequency * Server()->TickSpeed() > Server()->Tick())
 				{
 					GameServer()->SendChatTarget(m_ClientID, "Can't /spec that quickly.");
 					return m_Paused; // Do not update state. Do not collect $200
@@ -993,19 +998,19 @@ void CPlayer::ProcessScoreResult(CScorePlayerResult &Result)
 		switch(Result.m_MessageKind)
 		{
 		case CScorePlayerResult::DIRECT:
-			for(int i = 0; i < CScorePlayerResult::MAX_MESSAGES; i++)
+			for(auto &aMessage : Result.m_Data.m_aaMessages)
 			{
-				if(Result.m_Data.m_aaMessages[i][0] == 0)
+				if(aMessage[0] == 0)
 					break;
-				GameServer()->SendChatTarget(m_ClientID, Result.m_Data.m_aaMessages[i]);
+				GameServer()->SendChatTarget(m_ClientID, aMessage);
 			}
 			break;
 		case CScorePlayerResult::ALL:
-			for(int i = 0; i < CScorePlayerResult::MAX_MESSAGES; i++)
+			for(auto &aMessage : Result.m_Data.m_aaMessages)
 			{
-				if(Result.m_Data.m_aaMessages[i][0] == 0)
+				if(aMessage[0] == 0)
 					break;
-				GameServer()->SendChat(-1, CGameContext::CHAT_ALL, Result.m_Data.m_aaMessages[i], m_ClientID);
+				GameServer()->SendChat(-1, CGameContext::CHAT_ALL, aMessage, m_ClientID);
 			}
 			break;
 		case CScorePlayerResult::BROADCAST:

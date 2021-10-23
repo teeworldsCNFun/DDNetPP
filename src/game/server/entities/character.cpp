@@ -47,6 +47,12 @@ CCharacter::~CCharacter()
 	if(m_pDummyBlmapChillPolice)
 		delete m_pDummyBlmapChillPolice;
 	m_StrongWeakID = 0;
+
+	// never intilize both to zero
+	m_Input.m_TargetX = 0;
+	m_Input.m_TargetY = -1;
+
+	m_LatestPrevPrevInput = m_LatestPrevInput = m_LatestInput = m_PrevInput = m_SavedInput = m_Input;
 }
 
 void CCharacter::Reset()
@@ -75,6 +81,7 @@ bool CCharacter::Spawn(CPlayer *pPlayer, vec2 Pos)
 	m_IsSpecHF = false;
 
 	mem_zero(&m_LatestPrevPrevInput, sizeof(m_LatestPrevPrevInput));
+	m_LatestPrevPrevInput.m_TargetY = -1;
 	m_SpawnTick = Server()->Tick();
 	m_WeaponChangeTick = Server()->Tick();
 	Antibot()->OnSpawn(m_pPlayer->GetCID());
@@ -2431,9 +2438,9 @@ void CCharacter::DDRacePostCoreTick()
 	std::list<int> Indices = GameServer()->Collision()->GetMapIndices(m_PrevPos, m_Pos);
 	if(!Indices.empty())
 	{
-		for(std::list<int>::iterator i = Indices.begin(); i != Indices.end(); i++)
+		for(int &Index : Indices)
 		{
-			HandleTiles(*i);
+			HandleTiles(Index);
 			if(!m_Alive)
 				return;
 		}
@@ -2723,10 +2730,10 @@ void CCharacter::Rescue()
 {
 	if(m_SetSavePos && !m_Super)
 	{
-		if(m_LastRescue + g_Config.m_SvRescueDelay * Server()->TickSpeed() > Server()->Tick())
+		if(m_LastRescue + (int64_t)g_Config.m_SvRescueDelay * Server()->TickSpeed() > Server()->Tick())
 		{
 			char aBuf[256];
-			str_format(aBuf, sizeof(aBuf), "You have to wait %d seconds until you can rescue yourself", (int)((m_LastRescue + g_Config.m_SvRescueDelay * Server()->TickSpeed() - Server()->Tick()) / Server()->TickSpeed()));
+			str_format(aBuf, sizeof(aBuf), "You have to wait %d seconds until you can rescue yourself", (int)((m_LastRescue + (int64_t)g_Config.m_SvRescueDelay * Server()->TickSpeed() - Server()->Tick()) / Server()->TickSpeed()));
 			GameServer()->SendChatTarget(GetPlayer()->GetCID(), aBuf);
 			return;
 		}

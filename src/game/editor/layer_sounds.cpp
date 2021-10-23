@@ -35,7 +35,7 @@ void CLayerSounds::Render(bool Tileset)
 		if(pSource->m_PosEnv >= 0)
 		{
 			float aChannels[4];
-			m_pEditor->EnvelopeEval(pSource->m_PosEnvOffset / 1000.0f, pSource->m_PosEnv, aChannels, m_pEditor);
+			m_pEditor->EnvelopeEval(pSource->m_PosEnvOffset, pSource->m_PosEnv, aChannels, m_pEditor);
 			OffsetX = aChannels[0];
 			OffsetY = aChannels[1];
 		}
@@ -87,7 +87,7 @@ void CLayerSounds::Render(bool Tileset)
 		if(pSource->m_PosEnv >= 0)
 		{
 			float aChannels[4];
-			m_pEditor->EnvelopeEval(pSource->m_PosEnvOffset / 1000.0f, pSource->m_PosEnv, aChannels, m_pEditor);
+			m_pEditor->EnvelopeEval(pSource->m_PosEnvOffset, pSource->m_PosEnv, aChannels, m_pEditor);
 			OffsetX = aChannels[0];
 			OffsetY = aChannels[1];
 		}
@@ -227,5 +227,8 @@ void CLayerSounds::ModifySoundIndex(INDEX_MODIFY_FUNC Func)
 void CLayerSounds::ModifyEnvelopeIndex(INDEX_MODIFY_FUNC Func)
 {
 	for(int i = 0; i < m_lSources.size(); i++)
+	{
 		Func(&m_lSources[i].m_SoundEnv);
+		Func(&m_lSources[i].m_PosEnv);
+	}
 }

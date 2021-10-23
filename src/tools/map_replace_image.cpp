@@ -46,7 +46,7 @@ int LoadPNG(CImageInfo *pImg, const char *pFilename)
 		return 0;
 	}
 
-	pBuffer = (unsigned char *)malloc(Png.width * Png.height * Png.bpp);
+	pBuffer = (unsigned char *)malloc((size_t)Png.width * Png.height * Png.bpp);
 	Error = png_get_data(&Png, pBuffer);
 	if(Error != PNG_NO_ERROR)
 	{
@@ -63,6 +63,11 @@ int LoadPNG(CImageInfo *pImg, const char *pFilename)
 		pImg->m_Format = CImageInfo::FORMAT_RGB;
 	else if(Png.color_type == PNG_TRUECOLOR_ALPHA)
 		pImg->m_Format = CImageInfo::FORMAT_RGBA;
+	else
+	{
+		free(pBuffer);
+		return 0;
+	}
 	pImg->m_pData = pBuffer;
 	return 1;
 }

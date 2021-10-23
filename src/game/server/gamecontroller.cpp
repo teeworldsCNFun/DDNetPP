@@ -469,15 +469,13 @@ void IGameController::ChangeMap(const char *pToMap)
 
 void IGameController::PostReset()
 {
-	for(int i = 0; i < MAX_CLIENTS; i++)
+	for(auto &pPlayer : GameServer()->m_apPlayers)
 	{
-		if(GameServer()->m_apPlayers[i])
+		if(pPlayer)
 		{
-			GameServer()->m_apPlayers[i]->Respawn();
+			pPlayer->Respawn();
 			if(g_Config.m_SvDDPPscore == 0)
-				GameServer()->m_apPlayers[i]->m_Score = 0;
-			//GameServer()->m_apPlayers[i]->m_ScoreStartTick = Server()->Tick();
-			//GameServer()->m_apPlayers[i]->m_RespawnTick = Server()->Tick()+Server()->TickSpeed()/2;
+				pPlayer->m_Score = 0;
 		}
 	}
 }
@@ -616,8 +614,8 @@ void IGameController::Tick()
 					{
 						// move player to spectator if the reserved slots aren't filled yet, kick him otherwise
 						int Spectators = 0;
-						for(int j = 0; j < MAX_CLIENTS; ++j)
-							if(GameServer()->m_apPlayers[j] && GameServer()->m_apPlayers[j]->GetTeam() == TEAM_SPECTATORS)
+						for(auto &pPlayer : GameServer()->m_apPlayers)
+							if(pPlayer && pPlayer->GetTeam() == TEAM_SPECTATORS)
 								++Spectators;
 						if(Spectators >= g_Config.m_SvSpectatorSlots)
 							Server()->Kick(i, "Kicked for inactivity");

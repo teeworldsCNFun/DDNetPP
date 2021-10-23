@@ -67,9 +67,9 @@ static const char *VANILLA_IMAGES[] = {
 
 static bool IsVanillaImage(const char *pImage)
 {
-	for(unsigned i = 0; i < sizeof(VANILLA_IMAGES) / sizeof(VANILLA_IMAGES[0]); i++)
+	for(const auto *pVanillaImage : VANILLA_IMAGES)
 	{
-		if(str_comp(pImage, VANILLA_IMAGES[i]) == 0)
+		if(str_comp(pImage, pVanillaImage) == 0)
 		{
 			return true;
 		}
@@ -280,7 +280,7 @@ void CEditorImage::AnalyseTileFlags()
 	}
 }
 
-void CEditor::EnvelopeEval(float TimeOffset, int Env, float *pChannels, void *pUser)
+void CEditor::EnvelopeEval(int TimeOffsetMillis, int Env, float *pChannels, void *pUser)
 {
 	CEditor *pThis = (CEditor *)pUser;
 	if(Env < 0 || Env >= pThis->m_Map.m_lEnvelopes.size())
@@ -293,7 +293,7 @@ void CEditor::EnvelopeEval(float TimeOffset, int Env, float *pChannels, void *pU
 	}
 
 	CEnvelope *e = pThis->m_Map.m_lEnvelopes[Env];
-	float t = pThis->m_AnimateTime + TimeOffset;
+	float t = pThis->m_AnimateTime + (TimeOffsetMillis / 1000.0f);
 	t *= pThis->m_AnimateSpeed;
 	e->Eval(t, pChannels);
 }
@@ -301,6 +301,28 @@ void CEditor::EnvelopeEval(float TimeOffset, int Env, float *pChannels, void *pU
 /********************************************************
  OTHER
 *********************************************************/
+
+int CEditor::DoClearableEditBox(void *pID, void *pClearID, const CUIRect *pRect, char *pStr, unsigned StrSize, float FontSize, float *Offset, bool Hidden, int Corners)
+{
+	bool ReturnValue = false;
+	CUIRect EditBox;
+	CUIRect ClearButton;
+	pRect->VSplitRight(15.0f, &EditBox, &ClearButton);
+	if(DoEditBox(pID, &EditBox, pStr, StrSize, FontSize, Offset, Hidden, Corners & ~CUI::CORNER_R))
+	{
+		ReturnValue = true;
+	}
+
+	RenderTools()->DrawUIRect(&ClearButton, ColorRGBA(1, 1, 1, 0.33f * ButtonColorMul(pClearID)), Corners & ~CUI::CORNER_L, 3.0f);
+	UI()->DoLabel(&ClearButton, "×", ClearButton.h * 0.8f, 0);
+	if(UI()->DoButtonLogic(pClearID, "×", 0, &ClearButton))
+	{
+		pStr[0] = 0;
+		UI()->SetActiveItem(pID);
+		ReturnValue = true;
+	}
+	return ReturnValue;
+}
 
 // copied from gc_menu.cpp, should be more generalized
 //extern int ui_do_edit_box(void *id, const CUIRect *rect, char *str, int str_size, float font_size, bool hidden=false);
@@ -451,18 +473,18 @@ int CEditor::DoEditBox(void *pID, const CUIRect *pRect, char *pStr, unsigned Str
 	UI()->ClipEnable(pRect);
 	Textbox.x -= *Offset;
 
-	UI()->DoLabel(&Textbox, pDisplayStr, FontSize, -1);
+	UI()->DoLabel(&Textbox, pDisplayStr, FontSize, -1, Textbox.w * 2.0f);
 
 	// render the cursor
 	if(UI()->LastActiveItem() == pID && !JustGotActive)
 	{
-		float w = TextRender()->TextWidth(0, FontSize, pDisplayStr, s_AtIndex, -1.0f);
+		float w = TextRender()->TextWidth(0, FontSize, pDisplayStr, s_AtIndex, Textbox.w * 2.0f);
 		Textbox = *pRect;
 		Textbox.VSplitLeft(2.0f, 0, &Textbox);
-		Textbox.x += (w - *Offset - TextRender()->TextWidth(0, FontSize, "|", -1, -1.0f) / 2);
+		Textbox.x += (w - *Offset - TextRender()->TextWidth(0, FontSize, "|", -1, Textbox.w * 2.0f) / 2);
 
 		if((2 * time_get() / time_freq()) % 2) // make it blink
-			UI()->DoLabel(&Textbox, "|", FontSize, -1);
+			UI()->DoLabel(&Textbox, "|", FontSize, -1, Textbox.w * 2.0f);
 	}
 	UI()->ClipDisable();
 
@@ -602,11 +624,11 @@ int CEditor::DoButton_Editor_Common(const void *pID, const char *pText, int Chec
 	//return UI()->DoButton(id, text, checked, r, draw_func, 0);
 }
 
-int CEditor::DoButton_Editor(const void *pID, const char *pText, int Checked, const CUIRect *pRect, int Flags, const char *pToolTip)
+int CEditor::DoButton_Editor(const void *pID, const char *pText, int Checked, const CUIRect *pRect, int Flags, const char *pToolTip, int AlignVert)
 {
 	RenderTools()->DrawUIRect(pRect, GetButtonColor(pID, Checked), CUI::CORNER_ALL, 3.0f);
 	CUIRect NewRect = *pRect;
-	UI()->DoLabel(&NewRect, pText, 10.f, 0, -1);
+	UI()->DoLabel(&NewRect, pText, 10.f, 0, -1, AlignVert);
 	Checked %= 2;
 	return DoButton_Editor_Common(pID, pText, Checked, pRect, Flags, pToolTip);
 }
@@ -664,11 +686,11 @@ int CEditor::DoButton_Tab(const void *pID, const char *pText, int Checked, const
 	return DoButton_Editor_Common(pID, pText, Checked, pRect, Flags, pToolTip);
 }
 
-int CEditor::DoButton_Ex(const void *pID, const char *pText, int Checked, const CUIRect *pRect, int Flags, const char *pToolTip, int Corners, float FontSize)
+int CEditor::DoButton_Ex(const void *pID, const char *pText, int Checked, const CUIRect *pRect, int Flags, const char *pToolTip, int Corners, float FontSize, int AlignVert)
 {
 	RenderTools()->DrawUIRect(pRect, GetButtonColor(pID, Checked), Corners, 3.0f);
 	CUIRect NewRect = *pRect;
-	UI()->DoLabel(&NewRect, pText, FontSize, 0, -1);
+	UI()->DoLabel(&NewRect, pText, FontSize, 0, -1, AlignVert);
 	return DoButton_Editor_Common(pID, pText, Checked, pRect, Flags, pToolTip);
 }
 
@@ -1665,10 +1687,10 @@ void CEditor::DoQuad(CQuad *q, int Index)
 					for(int i = 0; i < m_lSelectedQuads.size(); ++i)
 					{
 						CQuad *pCurrentQuad = &pLayer->m_lQuads[m_lSelectedQuads[i]];
-						for(int v = 0; v < 5; v++)
+						for(auto &Point : pCurrentQuad->m_aPoints)
 						{
-							pCurrentQuad->m_aPoints[v].x += OffsetX;
-							pCurrentQuad->m_aPoints[v].y += OffsetY;
+							Point.x += OffsetX;
+							Point.y += OffsetY;
 						}
 					}
 				}
@@ -1680,10 +1702,10 @@ void CEditor::DoQuad(CQuad *q, int Index)
 					for(int i = 0; i < m_lSelectedQuads.size(); ++i)
 					{
 						CQuad *pCurrentQuad = &pLayer->m_lQuads[m_lSelectedQuads[i]];
-						for(int v = 0; v < 5; v++)
+						for(auto &Point : pCurrentQuad->m_aPoints)
 						{
-							pCurrentQuad->m_aPoints[v].x += OffsetX;
-							pCurrentQuad->m_aPoints[v].y += OffsetY;
+							Point.x += OffsetX;
+							Point.y += OffsetY;
 						}
 					}
 				}
@@ -2053,7 +2075,7 @@ void CEditor::DoQuadEnvelopes(const array<CQuad> &lQuads, IGraphics::CTextureHan
 {
 	int Num = lQuads.size();
 	CEnvelope **apEnvelope = new CEnvelope *[Num];
-	mem_zero(apEnvelope, sizeof(CEnvelope *) * Num);
+	mem_zero(apEnvelope, sizeof(CEnvelope *) * Num); // NOLINT(bugprone-sizeof-expression)
 	for(int i = 0; i < Num; i++)
 	{
 		if((m_ShowEnvelopePreview == 1 && lQuads[i].m_PosEnv == m_SelectedEnvelope) || m_ShowEnvelopePreview == 2)
@@ -2940,9 +2962,9 @@ void CEditor::DoMapEditor(CUIRect View)
 	//UI()->ClipDisable();
 }
 
-float CEditor::ScaleFontSize(char *aBuf, float FontSize, int Width)
+float CEditor::ScaleFontSize(char *pText, int TextSize, float FontSize, int Width)
 {
-	while(TextRender()->TextWidth(0, FontSize, aBuf, -1, -1.0f) > Width)
+	while(TextRender()->TextWidth(0, FontSize, pText, -1, -1.0f) > Width)
 	{
 		if(FontSize > 6.0f)
 		{
@@ -2950,8 +2972,8 @@ float CEditor::ScaleFontSize(char *aBuf, float FontSize, int Width)
 		}
 		else
 		{
-			aBuf[str_length(aBuf) - 4] = '\0';
-			str_append(aBuf, "...", sizeof(aBuf));
+			pText[str_length(pText) - 4] = '\0';
+			str_append(pText, "...", TextSize);
 		}
 	}
 	return FontSize;
@@ -3118,7 +3140,7 @@ int CEditor::DoProperties(CUIRect *pToolBox, CProperty *pProps, int *pIDs, int *
 			else
 				str_format(aBuf, sizeof(aBuf), "%s", m_Map.m_lImages[pProps[i].m_Value]->m_aName);
 
-			float FontSize = ScaleFontSize(aBuf, 10.0f, Shifter.w);
+			float FontSize = ScaleFontSize(aBuf, sizeof(aBuf), 10.0f, Shifter.w);
 			if(DoButton_Ex(&pIDs[i], aBuf, 0, &Shifter, 0, 0, CUI::CORNER_ALL, FontSize))
 				PopupSelectImageInvoke(pProps[i].m_Value, UI()->MouseX(), UI()->MouseY());
 
@@ -3172,7 +3194,7 @@ int CEditor::DoProperties(CUIRect *pToolBox, CProperty *pProps, int *pIDs, int *
 			else
 				str_format(aBuf, sizeof(aBuf), "%s", m_Map.m_lSounds[pProps[i].m_Value]->m_aName);
 
-			float FontSize = ScaleFontSize(aBuf, 10.0f, Shifter.w);
+			float FontSize = ScaleFontSize(aBuf, sizeof(aBuf), 10.0f, Shifter.w);
 			if(DoButton_Ex(&pIDs[i], aBuf, 0, &Shifter, 0, 0, CUI::CORNER_ALL, FontSize))
 				PopupSelectSoundInvoke(pProps[i].m_Value, UI()->MouseX(), UI()->MouseY());
 
@@ -3191,7 +3213,7 @@ int CEditor::DoProperties(CUIRect *pToolBox, CProperty *pProps, int *pIDs, int *
 			else
 				str_format(aBuf, sizeof(aBuf), "%s", m_Map.m_lImages[pProps[i].m_Min]->m_AutoMapper.GetConfigName(pProps[i].m_Value));
 
-			float FontSize = ScaleFontSize(aBuf, 10.0f, Shifter.w);
+			float FontSize = ScaleFontSize(aBuf, sizeof(aBuf), 10.0f, Shifter.w);
 			if(DoButton_Ex(&pIDs[i], aBuf, 0, &Shifter, 0, 0, CUI::CORNER_ALL, FontSize))
 				PopupSelectConfigAutoMapInvoke(pProps[i].m_Value, UI()->MouseX(), UI()->MouseY());
 
@@ -3218,7 +3240,7 @@ int CEditor::DoProperties(CUIRect *pToolBox, CProperty *pProps, int *pIDs, int *
 			else
 				str_format(aBuf, sizeof(aBuf), "%d", CurValue);
 
-			float FontSize = ScaleFontSize(aBuf, 10.0f, Shifter.w);
+			float FontSize = ScaleFontSize(aBuf, sizeof(aBuf), 10.0f, Shifter.w);
 			RenderTools()->DrawUIRect(&Shifter, Color, 0, 5.0f);
 			UI()->DoLabel(&Shifter, aBuf, FontSize, 0, -1);
 
@@ -3308,7 +3330,7 @@ void CEditor::RenderLayers(CUIRect ToolBox, CUIRect View)
 			{
 				LayersBox.HSplitTop(12.0f, &Slot, &LayersBox);
 				Slot.VSplitLeft(12, &VisibleToggle, &Slot);
-				if(DoButton_Ex(&m_Map.m_lGroups[g]->m_Visible, m_Map.m_lGroups[g]->m_Visible ? "V" : "H", m_Map.m_lGroups[g]->m_Collapse ? 1 : 0, &VisibleToggle, 0, "Toggle group visibility", CUI::CORNER_L))
+				if(DoButton_Ex(&m_Map.m_lGroups[g]->m_Visible, m_Map.m_lGroups[g]->m_Visible ? "V" : "H", m_Map.m_lGroups[g]->m_Collapse ? 1 : 0, &VisibleToggle, 0, "Toggle group visibility", CUI::CORNER_L, 10.0f, 0))
 					m_Map.m_lGroups[g]->m_Visible = !m_Map.m_lGroups[g]->m_Visible;
 
 				str_format(aBuf, sizeof(aBuf), "#%d %s", g, m_Map.m_lGroups[g]->m_aName);
@@ -3359,7 +3381,7 @@ void CEditor::RenderLayers(CUIRect ToolBox, CUIRect View)
 				Slot.VSplitLeft(12.0f, 0, &Button);
 				Button.VSplitLeft(15, &VisibleToggle, &Button);
 
-				if(DoButton_Ex(&m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible, m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible ? "V" : "H", 0, &VisibleToggle, 0, "Toggle layer visibility", CUI::CORNER_L))
+				if(DoButton_Ex(&m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible, m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible ? "V" : "H", 0, &VisibleToggle, 0, "Toggle layer visibility", CUI::CORNER_L, 10.0f, 0))
 					m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible = !m_Map.m_lGroups[g]->m_lLayers[i]->m_Visible;
 
 				if(m_Map.m_lGroups[g]->m_lLayers[i]->m_aName[0])
@@ -3696,7 +3718,6 @@ void CEditor::AddSound(const char *pFileName, int StorageType, void *pUser)
 	// add sound
 	CEditorSound *pSound = new CEditorSound(pEditor);
 	pSound->m_SoundID = SoundId;
-	pSound->m_External = 1; // external by default
 	pSound->m_DataSize = (unsigned)DataSize;
 	pSound->m_pData = pData;
 	str_copy(pSound->m_aName, aBuf, sizeof(pSound->m_aName));
@@ -3742,7 +3763,6 @@ void CEditor::ReplaceSound(const char *pFileName, int StorageType, void *pUser)
 	io_close(SoundFile);
 
 	CEditorSound *pSound = pEditor->m_Map.m_lSounds[pEditor->m_SelectedSound];
-	int External = pSound->m_External;
 
 	// unload sample
 	pEditor->Sound()->UnloadSample(pSound->m_SoundID);
@@ -3753,7 +3773,6 @@ void CEditor::ReplaceSound(const char *pFileName, int StorageType, void *pUser)
 	}
 
 	// replace sound
-	pSound->m_External = External;
 	IStorage::StripPathAndExtension(pFileName, pSound->m_aName, sizeof(pSound->m_aName));
 	pSound->m_SoundID = pEditor->Sound()->LoadOpusFromMem(pData, (unsigned)DataSize, true);
 	pSound->m_pData = pData;
@@ -3829,28 +3848,6 @@ int CEditor::PopupSound(CEditor *pEditor, CUIRect View, void *pContext)
 	CUIRect Slot;
 	View.HSplitTop(2.0f, &Slot, &View);
 	View.HSplitTop(12.0f, &Slot, &View);
-	CEditorSound *pSound = pEditor->m_Map.m_lSounds[pEditor->m_SelectedSound];
-
-	static int s_ExternalButton = 0;
-	if(pSound->m_External)
-	{
-		if(pEditor->DoButton_MenuItem(&s_ExternalButton, "Embed", 0, &Slot, 0, "Embeds the sound into the map file."))
-		{
-			pSound->m_External = 0;
-			return 1;
-		}
-	}
-	else
-	{
-		if(pEditor->DoButton_MenuItem(&s_ExternalButton, "Make external", 0, &Slot, 0, "Removes the sound from the map file."))
-		{
-			pSound->m_External = 1;
-			return 1;
-		}
-	}
-
-	View.HSplitTop(5.0f, &Slot, &View);
-	View.HSplitTop(12.0f, &Slot, &View);
 	if(pEditor->DoButton_MenuItem(&s_ReplaceButton, "Replace", 0, &Slot, 0, "Replaces the sound with a new one"))
 	{
 		pEditor->InvokeFileDialog(IStorage::TYPE_ALL, FILETYPE_SOUND, "Replace sound", "Replace", "mapres", "", ReplaceSound, pEditor);
@@ -3859,6 +3856,7 @@ int CEditor::PopupSound(CEditor *pEditor, CUIRect View, void *pContext)
 
 	View.HSplitTop(5.0f, &Slot, &View);
 	View.HSplitTop(12.0f, &Slot, &View);
+	CEditorSound *pSound = pEditor->m_Map.m_lSounds[pEditor->m_SelectedSound];
 	if(pEditor->DoButton_MenuItem(&s_RemoveButton, "Remove", 0, &Slot, 0, "Removes the sound from the map"))
 	{
 		delete pSound;
@@ -3886,43 +3884,37 @@ void CEditor::SelectGameLayer()
 	}
 }
 
-static int CompareImageName(const void *pObject1, const void *pObject2)
+static bool ImageNameLess(const CEditorImage *const &a, const CEditorImage *const &b)
 {
-	CEditorImage *pImage1 = *(CEditorImage **)pObject1;
-	CEditorImage *pImage2 = *(CEditorImage **)pObject2;
-
-	return str_comp(pImage1->m_aName, pImage2->m_aName);
+	return str_comp(a->m_aName, b->m_aName) < 0;
 }
 
 static int *gs_pSortedIndex = 0;
 static void ModifySortedIndex(int *pIndex)
 {
-	if(*pIndex > -1)
+	if(*pIndex >= 0)
 		*pIndex = gs_pSortedIndex[*pIndex];
 }
 
 void CEditor::SortImages()
 {
-	bool Sorted = true;
-	for(int i = 1; i < m_Map.m_lImages.size(); i++)
-		if(str_comp(m_Map.m_lImages[i]->m_aName, m_Map.m_lImages[i - 1]->m_aName) < 0)
-		{
-			Sorted = false;
-			break;
-		}
-
-	if(!Sorted)
+	if(!std::is_sorted(m_Map.m_lImages.base_ptr(), m_Map.m_lImages.base_ptr() + m_Map.m_lImages.size(), ImageNameLess))
 	{
 		array<CEditorImage *> lTemp = m_Map.m_lImages;
 		gs_pSortedIndex = new int[lTemp.size()];
 
-		qsort(m_Map.m_lImages.base_ptr(), m_Map.m_lImages.size(), sizeof(CEditorImage *), CompareImageName);
-
+		std::sort(m_Map.m_lImages.base_ptr(), m_Map.m_lImages.base_ptr() + m_Map.m_lImages.size(), ImageNameLess);
 		for(int OldIndex = 0; OldIndex < lTemp.size(); OldIndex++)
+		{
 			for(int NewIndex = 0; NewIndex < m_Map.m_lImages.size(); NewIndex++)
+			{
 				if(lTemp[OldIndex] == m_Map.m_lImages[NewIndex])
+				{
 					gs_pSortedIndex[OldIndex] = NewIndex;
-
+					break;
+				}
+			}
+		}
 		m_Map.ModifyImageIndex(ModifySortedIndex);
 
 		delete[] gs_pSortedIndex;
@@ -4181,135 +4173,82 @@ void CEditor::RenderSounds(CUIRect ToolBox, CUIRect View)
 	float SoundStopAt = SoundsHeight - ScrollDifference * (1 - s_ScrollValue);
 	float SoundCur = 0.0f;
 
-	for(int e = 0; e < 2; e++) // two passes, first embedded, then external
-	{
-		CUIRect Slot;
+	CUIRect Slot;
 
+	ToolBox.HSplitTop(15.0f, &Slot, &ToolBox);
+	UI()->DoLabel(&Slot, "Embedded", 12.0f, 0);
+	SoundCur += 15.0f;
+
+	for(int i = 0; i < m_Map.m_lSounds.size(); i++)
+	{
 		if(SoundCur > SoundStopAt)
 			break;
-		else if(SoundCur >= SoundStartAt)
+		else if(SoundCur < SoundStartAt)
 		{
-			ToolBox.HSplitTop(15.0f, &Slot, &ToolBox);
-			if(e == 0)
-				UI()->DoLabel(&Slot, "Embedded", 12.0f, 0);
-			else
-				UI()->DoLabel(&Slot, "External", 12.0f, 0);
-		}
-		SoundCur += 15.0f;
-
-		for(int i = 0; i < m_Map.m_lSounds.size(); i++)
-		{
-			if((e && !m_Map.m_lSounds[i]->m_External) ||
-				(!e && m_Map.m_lSounds[i]->m_External))
-			{
-				continue;
-			}
-
-			if(SoundCur > SoundStopAt)
-				break;
-			else if(SoundCur < SoundStartAt)
-			{
-				SoundCur += 14.0f;
-				continue;
-			}
 			SoundCur += 14.0f;
+			continue;
+		}
+		SoundCur += 14.0f;
 
-			char aBuf[128];
-			str_copy(aBuf, m_Map.m_lSounds[i]->m_aName, sizeof(aBuf));
-			ToolBox.HSplitTop(12.0f, &Slot, &ToolBox);
+		char aBuf[128];
+		str_copy(aBuf, m_Map.m_lSounds[i]->m_aName, sizeof(aBuf));
+		ToolBox.HSplitTop(12.0f, &Slot, &ToolBox);
 
-			int Selected = m_SelectedSound == i;
-			for(int x = 0; x < m_Map.m_lGroups.size(); ++x)
-				for(int j = 0; j < m_Map.m_lGroups[x]->m_lLayers.size(); ++j)
-					if(m_Map.m_lGroups[x]->m_lLayers[j]->m_Type == LAYERTYPE_SOUNDS)
-					{
-						CLayerSounds *pLayer = static_cast<CLayerSounds *>(m_Map.m_lGroups[x]->m_lLayers[j]);
-						if(pLayer->m_Sound == i)
-							goto done;
-					}
+		int Selected = m_SelectedSound == i;
+		for(int x = 0; x < m_Map.m_lGroups.size(); ++x)
+			for(int j = 0; j < m_Map.m_lGroups[x]->m_lLayers.size(); ++j)
+				if(m_Map.m_lGroups[x]->m_lLayers[j]->m_Type == LAYERTYPE_SOUNDS)
+				{
+					CLayerSounds *pLayer = static_cast<CLayerSounds *>(m_Map.m_lGroups[x]->m_lLayers[j]);
+					if(pLayer->m_Sound == i)
+						goto used;
+				}
 
-			Selected += 2; // Sound is unused
-		done:
-			if(Selected < 2 && e == 1)
-				Selected += 4; // Sound should be embedded
+		Selected += 2; // Sound is unused
+	used:
+		float FontSize = 10.0f;
+		while(TextRender()->TextWidth(0, FontSize, aBuf, -1, -1.0f) > Slot.w)
+			FontSize--;
 
-			float FontSize = 10.0f;
-			while(TextRender()->TextWidth(0, FontSize, aBuf, -1, -1.0f) > Slot.w)
-				FontSize--;
+		if(int Result = DoButton_Ex(&m_Map.m_lSounds[i], aBuf, Selected, &Slot,
+			   BUTTON_CONTEXT, "Select sound.", 0, FontSize))
+		{
+			m_SelectedSound = i;
 
-			if(int Result = DoButton_Ex(&m_Map.m_lSounds[i], aBuf, Selected, &Slot,
-				   BUTTON_CONTEXT, "Select sound.", 0, FontSize))
-			{
-				m_SelectedSound = i;
-
-				static int s_PopupSoundID = 0;
-				if(Result == 2)
-					UiInvokePopupMenu(&s_PopupSoundID, 0, UI()->MouseX(), UI()->MouseY(), 120, 60, PopupSound);
-			}
-
-			ToolBox.HSplitTop(2.0f, 0, &ToolBox);
+			static int s_PopupSoundID = 0;
+			if(Result == 2)
+				UiInvokePopupMenu(&s_PopupSoundID, 0, UI()->MouseX(), UI()->MouseY(), 120, 43, PopupSound);
 		}
 
-		// separator
-		ToolBox.HSplitTop(5.0f, &Slot, &ToolBox);
-		SoundCur += 5.0f;
-		IGraphics::CLineItem LineItem(Slot.x, Slot.y + Slot.h / 2, Slot.x + Slot.w, Slot.y + Slot.h / 2);
-		Graphics()->TextureClear();
-		Graphics()->LinesBegin();
-		Graphics()->LinesDraw(&LineItem, 1);
-		Graphics()->LinesEnd();
+		ToolBox.HSplitTop(2.0f, 0, &ToolBox);
 	}
+
+	// separator
+	ToolBox.HSplitTop(5.0f, &Slot, &ToolBox);
+	IGraphics::CLineItem LineItem(Slot.x, Slot.y + Slot.h / 2, Slot.x + Slot.w, Slot.y + Slot.h / 2);
+	Graphics()->TextureClear();
+	Graphics()->LinesBegin();
+	Graphics()->LinesDraw(&LineItem, 1);
+	Graphics()->LinesEnd();
 
 	if(Input()->KeyPress(KEY_DOWN) && m_Dialog == DIALOG_NONE)
 	{
-		int OldSound = m_SelectedSound;
 		m_SelectedSound = clamp(m_SelectedSound, 0, m_Map.m_lSounds.size() - 1);
-		for(int i = m_SelectedSound + 1; i < m_Map.m_lSounds.size(); i++)
-		{
-			if(m_Map.m_lSounds[i]->m_External == m_Map.m_lSounds[m_SelectedSound]->m_External)
-			{
-				m_SelectedSound = i;
-				break;
-			}
-		}
-		if(m_SelectedSound == OldSound && !m_Map.m_lSounds[m_SelectedSound]->m_External)
-		{
-			for(int i = 0; i < m_Map.m_lSounds.size(); i++)
-			{
-				if(m_Map.m_lSounds[i]->m_External)
-				{
-					m_SelectedSound = i;
-					break;
-				}
-			}
-		}
+		if(m_SelectedSound == m_Map.m_lSounds.size() - 1)
+			m_SelectedSound = 0;
+		else
+			m_SelectedSound += 1;
 	}
 	if(Input()->KeyPress(KEY_UP) && m_Dialog == DIALOG_NONE)
 	{
-		int OldSound = m_SelectedSound;
 		m_SelectedSound = clamp(m_SelectedSound, 0, m_Map.m_lSounds.size() - 1);
-		for(int i = m_SelectedSound - 1; i >= 0; i--)
-		{
-			if(m_Map.m_lSounds[i]->m_External == m_Map.m_lSounds[m_SelectedSound]->m_External)
-			{
-				m_SelectedSound = i;
-				break;
-			}
-		}
-		if(m_SelectedSound == OldSound && m_Map.m_lSounds[m_SelectedSound]->m_External)
-		{
-			for(int i = m_Map.m_lSounds.size() - 1; i >= 0; i--)
-			{
-				if(!m_Map.m_lSounds[i]->m_External)
-				{
-					m_SelectedSound = i;
-					break;
-				}
-			}
-		}
+		if(m_SelectedSound == 0 && m_Map.m_lSounds.size() != 0)
+			m_SelectedSound = m_Map.m_lSounds.size() - 1;
+		else
+			m_SelectedSound -= 1;
 	}
 
-	CUIRect Slot;
+	//CUIRect Slot;
 	ToolBox.HSplitTop(5.0f, &Slot, &ToolBox);
 
 	// new Sound
@@ -4322,7 +4261,6 @@ void CEditor::RenderSounds(CUIRect ToolBox, CUIRect View)
 static int EditorListdirCallback(const char *pName, int IsDir, int StorageType, void *pUser)
 {
 	CEditor *pEditor = (CEditor *)pUser;
-	int Length = str_length(pName);
 	if((pName[0] == '.' && (pName[1] == 0 ||
 				       (pName[1] == '.' && pName[2] == 0 && (!str_comp(pEditor->m_pFileDialogPath, "maps") || !str_comp(pEditor->m_pFileDialogPath, "mapres"))))) ||
 		(!IsDir && ((pEditor->m_FileDialogFileType == CEditor::FILETYPE_MAP && !str_endswith(pName, ".map")) ||
@@ -4336,10 +4274,8 @@ static int EditorListdirCallback(const char *pName, int IsDir, int StorageType, 
 		str_format(Item.m_aName, sizeof(Item.m_aName), "%s/", pName);
 	else
 	{
-		if(pEditor->m_FileDialogFileType == CEditor::FILETYPE_SOUND)
-			str_copy(Item.m_aName, pName, minimum(static_cast<int>(sizeof(Item.m_aName)), Length - 4));
-		else
-			str_copy(Item.m_aName, pName, minimum(static_cast<int>(sizeof(Item.m_aName)), Length - 3));
+		int LenEnding = pEditor->m_FileDialogFileType == CEditor::FILETYPE_SOUND ? 5 : 4;
+		str_truncate(Item.m_aName, sizeof(Item.m_aName), pName, str_length(pName) - LenEnding);
 	}
 	Item.m_IsDir = IsDir != 0;
 	Item.m_IsLink = false;
@@ -4850,7 +4786,7 @@ void CEditor::RenderStatusbar(CUIRect View)
 		else
 			str_copy(aBuf, m_pTooltip, sizeof(aBuf));
 
-		float FontSize = ScaleFontSize(aBuf, 10.0f, View.w);
+		float FontSize = ScaleFontSize(aBuf, sizeof(aBuf), 10.0f, View.w);
 		UI()->DoLabel(&View, aBuf, FontSize, -1, View.w);
 	}
 }
@@ -5493,7 +5429,7 @@ void CEditor::RenderEnvelopeEditor(CUIRect View)
 	}
 }
 
-void CEditor::RenderServerSettingsEditor(CUIRect View)
+void CEditor::RenderServerSettingsEditor(CUIRect View, bool ShowServerSettingsEditorLast)
 {
 	static int s_CommandSelectedIndex = -1;
 
@@ -5511,7 +5447,11 @@ void CEditor::RenderServerSettingsEditor(CUIRect View)
 
 		Button.VSplitLeft(70.0f, 0, &Button);
 		Button.VSplitLeft(180.0f, &Button, 0);
-		DoEditBox(&m_CommandBox, &Button, m_aSettingsCommand, sizeof(m_aSettingsCommand), 12.0f, &m_CommandBox);
+		static int s_ClearButton = 0;
+		DoClearableEditBox(&m_CommandBox, &s_ClearButton, &Button, m_aSettingsCommand, sizeof(m_aSettingsCommand), 12.0f, &m_CommandBox, false, CUI::CORNER_ALL);
+
+		if(!ShowServerSettingsEditorLast) // Just activated
+			UI()->SetActiveItem(&m_CommandBox);
 
 		// buttons
 		ToolBar.VSplitRight(50.0f, &ToolBar, &Button);
@@ -5533,18 +5473,54 @@ void CEditor::RenderServerSettingsEditor(CUIRect View)
 					CEditorMap::CSetting Setting;
 					str_copy(Setting.m_aCommand, m_aSettingsCommand, sizeof(Setting.m_aCommand));
 					m_Map.m_lSettings.add(Setting);
+					s_CommandSelectedIndex = m_Map.m_lSettings.size() - 1;
 				}
 			}
+			UI()->SetActiveItem(&m_CommandBox);
 		}
 
-		if(m_Map.m_lSettings.size())
+		if(m_Map.m_lSettings.size() && s_CommandSelectedIndex > -1 && s_CommandSelectedIndex < m_Map.m_lSettings.size())
 		{
+			ToolBar.VSplitRight(50.0f, &ToolBar, &Button);
+			Button.VSplitRight(5.0f, &Button, 0);
+			static int s_ModButton = 0;
+			if(DoButton_Editor(&s_ModButton, "Mod", 0, &Button, 0, "Modify a command from the command list.") || (Input()->KeyPress(KEY_M) && UI()->LastActiveItem() != &m_CommandBox))
+			{
+				if(str_comp(m_Map.m_lSettings[s_CommandSelectedIndex].m_aCommand, m_aSettingsCommand) != 0 && m_aSettingsCommand[0] != 0 && str_find(m_aSettingsCommand, " "))
+				{
+					bool Found = false;
+					int i;
+					for(i = 0; i < m_Map.m_lSettings.size(); i++)
+						if(i != s_CommandSelectedIndex && !str_comp(m_Map.m_lSettings[i].m_aCommand, m_aSettingsCommand))
+						{
+							Found = true;
+							break;
+						}
+					if(Found)
+					{
+						m_Map.m_lSettings.remove_index(s_CommandSelectedIndex);
+						s_CommandSelectedIndex = i > s_CommandSelectedIndex ? i - 1 : i;
+					}
+					else
+					{
+						str_copy(m_Map.m_lSettings[s_CommandSelectedIndex].m_aCommand, m_aSettingsCommand, sizeof(m_Map.m_lSettings[s_CommandSelectedIndex].m_aCommand));
+					}
+				}
+				UI()->SetActiveItem(&m_CommandBox);
+			}
+
 			ToolBar.VSplitRight(50.0f, &ToolBar, &Button);
 			Button.VSplitRight(5.0f, &Button, 0);
 			static int s_DelButton = 0;
 			if(DoButton_Editor(&s_DelButton, "Del", 0, &Button, 0, "Delete a command from the command list.") || (Input()->KeyPress(KEY_DELETE) && UI()->LastActiveItem() != &m_CommandBox))
-				if(s_CommandSelectedIndex > -1 && s_CommandSelectedIndex < m_Map.m_lSettings.size())
-					m_Map.m_lSettings.remove_index(s_CommandSelectedIndex);
+			{
+				m_Map.m_lSettings.remove_index(s_CommandSelectedIndex);
+				if(s_CommandSelectedIndex >= m_Map.m_lSettings.size())
+					s_CommandSelectedIndex = m_Map.m_lSettings.size() - 1;
+				if(s_CommandSelectedIndex >= 0)
+					str_copy(m_aSettingsCommand, m_Map.m_lSettings[s_CommandSelectedIndex].m_aCommand, sizeof(m_aSettingsCommand));
+				UI()->SetActiveItem(&m_CommandBox);
+			}
 		}
 	}
 
@@ -5578,8 +5554,6 @@ void CEditor::RenderServerSettingsEditor(CUIRect View)
 				if(Input()->KeyPress(KEY_MOUSE_WHEEL_DOWN))
 					s_ScrollValue = clamp(s_ScrollValue + 1.0f / ScrollNum, 0.0f, 1.0f);
 			}
-			else
-				ScrollNum = 0;
 		}
 	}
 
@@ -5604,7 +5578,11 @@ void CEditor::RenderServerSettingsEditor(CUIRect View)
 			Button.VSplitLeft(5.0f, 0, &Button);
 
 			if(DoButton_MenuItem(&m_Map.m_lSettings[i], m_Map.m_lSettings[i].m_aCommand, s_CommandSelectedIndex == i, &Button, 0, 0))
+			{
 				s_CommandSelectedIndex = i;
+				str_copy(m_aSettingsCommand, m_Map.m_lSettings[i].m_aCommand, sizeof(m_aSettingsCommand));
+				UI()->SetActiveItem(&m_CommandBox);
+			}
 		}
 		ListCur += 17.0f;
 	}
@@ -5762,7 +5740,7 @@ void CEditor::RenderMenubar(CUIRect MenuBar)
 	UI()->DoLabel(&Info, aBuf, 10.0f, 1, -1);
 
 	static int s_CloseButton = 0;
-	if(DoButton_Editor(&s_CloseButton, "×", 0, &Close, 0, "Exits from the editor") || (m_Dialog == DIALOG_NONE && !UiPopupOpen() && !m_PopupEventActivated && Input()->KeyPress(KEY_ESCAPE)))
+	if(DoButton_Editor(&s_CloseButton, "×", 0, &Close, 0, "Exits from the editor", 0) || (m_Dialog == DIALOG_NONE && !UiPopupOpen() && !m_PopupEventActivated && Input()->KeyPress(KEY_ESCAPE)))
 		g_Config.m_ClEditor = 0;
 }
 
@@ -6045,8 +6023,12 @@ void CEditor::Render()
 				RenderEnvelopeEditor(ExtraEditor);
 			if(m_ShowUndo)
 				RenderUndoList(UndoList);
+			static bool s_ShowServerSettingsEditorLast = false;
 			if(m_ShowServerSettingsEditor)
-				RenderServerSettingsEditor(ExtraEditor);
+			{
+				RenderServerSettingsEditor(ExtraEditor, s_ShowServerSettingsEditorLast);
+			}
+			s_ShowServerSettingsEditorLast = m_ShowServerSettingsEditor;
 		}
 	}
 
@@ -6079,13 +6061,13 @@ void CEditor::Render()
 		if(Zoom != 0)
 		{
 			float OldLevel = m_ZoomLevel;
-			m_ZoomLevel = clamp(m_ZoomLevel + Zoom * 20, 50, 2000);
+			m_ZoomLevel = clamp(m_ZoomLevel + Zoom * 20, 10, 2000);
 			if(g_Config.m_EdZoomTarget)
 				ZoomMouseTarget((float)m_ZoomLevel / OldLevel);
 		}
 	}
 
-	m_ZoomLevel = clamp(m_ZoomLevel, 50, 2000);
+	m_ZoomLevel = clamp(m_ZoomLevel, 10, 2000);
 	m_WorldZoom = m_ZoomLevel / 100.0f;
 
 	if(m_GuiActive)
@@ -6348,7 +6330,8 @@ void CEditor::Init()
 	m_pTextRender = Kernel()->RequestInterface<ITextRender>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
 	m_pSound = Kernel()->RequestInterface<ISound>();
-	m_RenderTools.Init(m_pGraphics, &m_UI);
+	CGameClient *pGameClient = (CGameClient *)Kernel()->RequestInterface<IGameClient>();
+	m_RenderTools.Init(m_pGraphics, &m_UI, pGameClient);
 	m_UI.SetGraphics(m_pGraphics, m_pTextRender);
 	m_Map.m_pEditor = this;
 

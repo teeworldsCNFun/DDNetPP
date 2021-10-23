@@ -82,6 +82,8 @@ MACRO_CONFIG_INT(SndEnable, snd_enable, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, 
 MACRO_CONFIG_INT(SndMusic, snd_enable_music, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Play background music")
 MACRO_CONFIG_INT(SndVolume, snd_volume, 100, 0, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Sound volume")
 MACRO_CONFIG_INT(SndDevice, snd_device, -1, 0, 0, CFGFLAG_SAVE | CFGFLAG_CLIENT, "(deprecated) Sound device to use")
+MACRO_CONFIG_INT(SndChatSoundVolume, snd_chat_volume, 100, 0, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Chat sound volume")
+MACRO_CONFIG_INT(SndGameSoundVolume, snd_game_volume, 100, 0, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Game sound volume")
 MACRO_CONFIG_INT(SndMapSoundVolume, snd_ambient_volume, 70, 0, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Map Sound sound volume")
 MACRO_CONFIG_INT(SndBackgroundMusicVolume, snd_background_music_volume, 50, 0, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Background music sound volume")
 
@@ -121,7 +123,7 @@ MACRO_CONFIG_INT(GfxBackgroundRender, gfx_backgroundrender, 1, 0, 1, CFGFLAG_SAV
 MACRO_CONFIG_INT(GfxTextOverlay, gfx_text_overlay, 10, 1, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Stop rendering textoverlay in editor or with entities: high value = less details = more speed")
 MACRO_CONFIG_INT(GfxAsyncRenderOld, gfx_asyncrender_old, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Do rendering async from the the update")
 MACRO_CONFIG_INT(GfxTuneOverlay, gfx_tune_overlay, 20, 1, 100, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Stop rendering text overlay in tuning zone in editor: high value = less details = more speed")
-MACRO_CONFIG_INT(GfxQuadAsTriangle, gfx_quad_as_triangle, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Render quads as triangles (fixes quad coloring on some GPUs)")
+MACRO_CONFIG_INT(GfxQuadAsTriangle, gfx_quad_as_triangle, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Render quads as triangles (fixes quad coloring on some GPUs)")
 MACRO_CONFIG_INT(GfxShowWarnings, gfx_show_warnings, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Render gfx warnings to screen")
 
 MACRO_CONFIG_INT(InpMousesens, inp_mousesens, 200, 1, 100000, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Mouse sensitivity")
@@ -174,6 +176,7 @@ MACRO_CONFIG_INT(DbgCurl, dbg_curl, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SERVER, "D
 MACRO_CONFIG_INT(DbgPref, dbg_pref, 0, 0, 1, CFGFLAG_SERVER, "Performance outputs")
 MACRO_CONFIG_INT(DbgGraphs, dbg_graphs, 0, 0, 1, CFGFLAG_CLIENT, "Performance graphs")
 MACRO_CONFIG_INT(DbgHitch, dbg_hitch, 0, 0, 0, CFGFLAG_SERVER, "Hitch warnings")
+MACRO_CONFIG_INT(DbgGfx, dbg_gfx, 0, 0, 1, CFGFLAG_CLIENT, "Show OpenGL warnings and errors, if the GPU supports it")
 #ifdef CONF_DEBUG
 MACRO_CONFIG_INT(DbgStress, dbg_stress, 0, 0, 0, CFGFLAG_CLIENT | CFGFLAG_SERVER, "Stress systems")
 MACRO_CONFIG_INT(DbgStressNetwork, dbg_stress_network, 0, 0, 0, CFGFLAG_CLIENT | CFGFLAG_SERVER, "Stress network")
@@ -357,8 +360,11 @@ MACRO_CONFIG_INT(ClPredictFreeze, cl_predict_freeze, 1, 0, 2, CFGFLAG_CLIENT | C
 MACRO_CONFIG_INT(ClShowNinja, cl_show_ninja, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show ninja skin")
 MACRO_CONFIG_INT(ClShowHookCollOther, cl_show_hook_coll_other, 1, 0, 2, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show other players' hook collision line (2 to always show)")
 MACRO_CONFIG_INT(ClShowHookCollOwn, cl_show_hook_coll_own, 1, 0, 2, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show own players' hook collision line (2 to always show)")
+
 MACRO_CONFIG_INT(ClChatTeamColors, cl_chat_teamcolors, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show names in chat in team colors")
 MACRO_CONFIG_INT(ClChatReset, cl_chat_reset, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Reset chat when pressing escape")
+MACRO_CONFIG_INT(ClChatOld, cl_chat_old, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Old chat style: No tee, no background");
+
 MACRO_CONFIG_INT(ClShowDirection, cl_show_direction, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Show tee direction")
 MACRO_CONFIG_INT(ClHttpMapDownload, cl_http_map_download, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Try fast HTTP map download first")
 MACRO_CONFIG_INT(ClOldGunPosition, cl_old_gun_position, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Tees hold gun a bit higher like in TW 0.6.1 and older")
@@ -389,6 +395,7 @@ MACRO_CONFIG_INT(GfxOpenGLPatch, gfx_opengl_patch, 0, 0, 10, CFGFLAG_SAVE | CFGF
 MACRO_CONFIG_INT(GfxOpenGLTextureLODBIAS, gfx_opengl_texture_lod_bias, -500, -15000, 15000, CFGFLAG_SAVE | CFGFLAG_CLIENT, "The lod bias for OpenGL texture sampling multiplied by 1000")
 
 MACRO_CONFIG_INT(Gfx3DTextureAnalysisDone, gfx_3d_texture_analysis_done, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Analyzed, if sampling 3D/2D array textures was correct")
+MACRO_CONFIG_INT(GfxDriverIsBlocked, gfx_driver_is_blocked, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "If 1, the current driver is in a blocked error state.")
 #if !defined(CONF_PLATFORM_MACOSX)
 MACRO_CONFIG_INT(GfxEnableTextureUnitOptimization, gfx_enable_texture_unit_optimization, 1, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Use multiple texture units, instead of only one.")
 #else

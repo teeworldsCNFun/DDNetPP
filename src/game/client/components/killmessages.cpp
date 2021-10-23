@@ -12,30 +12,30 @@
 
 void CKillMessages::OnWindowResize()
 {
-	for(int i = 0; i < MAX_KILLMSGS; i++)
+	for(auto &Killmsg : m_aKillmsgs)
 	{
-		if(m_aKillmsgs[i].m_VictimTextContainerIndex != -1)
-			TextRender()->DeleteTextContainer(m_aKillmsgs[i].m_VictimTextContainerIndex);
-		if(m_aKillmsgs[i].m_KillerTextContainerIndex != -1)
-			TextRender()->DeleteTextContainer(m_aKillmsgs[i].m_KillerTextContainerIndex);
-		m_aKillmsgs[i].m_VictimTextContainerIndex = m_aKillmsgs[i].m_KillerTextContainerIndex = -1;
+		if(Killmsg.m_VictimTextContainerIndex != -1)
+			TextRender()->DeleteTextContainer(Killmsg.m_VictimTextContainerIndex);
+		if(Killmsg.m_KillerTextContainerIndex != -1)
+			TextRender()->DeleteTextContainer(Killmsg.m_KillerTextContainerIndex);
+		Killmsg.m_VictimTextContainerIndex = Killmsg.m_KillerTextContainerIndex = -1;
 	}
 }
 
 void CKillMessages::OnReset()
 {
 	m_KillmsgCurrent = 0;
-	for(int i = 0; i < MAX_KILLMSGS; i++)
+	for(auto &Killmsg : m_aKillmsgs)
 	{
-		m_aKillmsgs[i].m_Tick = -100000;
+		Killmsg.m_Tick = -100000;
 
-		if(m_aKillmsgs[i].m_VictimTextContainerIndex != -1)
-			TextRender()->DeleteTextContainer(m_aKillmsgs[i].m_VictimTextContainerIndex);
+		if(Killmsg.m_VictimTextContainerIndex != -1)
+			TextRender()->DeleteTextContainer(Killmsg.m_VictimTextContainerIndex);
 
-		if(m_aKillmsgs[i].m_KillerTextContainerIndex != -1)
-			TextRender()->DeleteTextContainer(m_aKillmsgs[i].m_KillerTextContainerIndex);
+		if(Killmsg.m_KillerTextContainerIndex != -1)
+			TextRender()->DeleteTextContainer(Killmsg.m_KillerTextContainerIndex);
 
-		m_aKillmsgs[i].m_VictimTextContainerIndex = m_aKillmsgs[i].m_KillerTextContainerIndex = -1;
+		Killmsg.m_VictimTextContainerIndex = Killmsg.m_KillerTextContainerIndex = -1;
 	}
 }
 
@@ -44,20 +44,22 @@ void CKillMessages::OnInit()
 	Graphics()->SetColor(1.f, 1.f, 1.f, 1.f);
 	m_SpriteQuadContainerIndex = Graphics()->CreateQuadContainer();
 
-	RenderTools()->SelectSprite(SPRITE_FLAG_RED);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 0.f, 0.f, 28.f, 56.f);
-	RenderTools()->SelectSprite(SPRITE_FLAG_BLUE);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 0.f, 0.f, 28.f, 56.f);
 
-	RenderTools()->SelectSprite(SPRITE_FLAG_RED, SPRITE_FLAG_FLIP_X);
+	Graphics()->QuadsSetSubset(1, 0, 0, 1);
 	RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 0.f, 0.f, 28.f, 56.f);
-	RenderTools()->SelectSprite(SPRITE_FLAG_BLUE, SPRITE_FLAG_FLIP_X);
+	Graphics()->QuadsSetSubset(1, 0, 0, 1);
 	RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 0.f, 0.f, 28.f, 56.f);
 
 	for(int i = 0; i < NUM_WEAPONS; ++i)
 	{
-		RenderTools()->SelectSprite(g_pData->m_Weapons.m_aId[i].m_pSpriteBody);
-		RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 96.f);
+		float ScaleX, ScaleY;
+		Graphics()->QuadsSetSubset(0, 0, 1, 1);
+		RenderTools()->GetSpriteScale(g_pData->m_Weapons.m_aId[i].m_pSpriteBody, ScaleX, ScaleY);
+		RenderTools()->QuadContainerAddSprite(m_SpriteQuadContainerIndex, 96.f * ScaleX, 96.f * ScaleY);
 	}
 }
 
@@ -91,6 +93,8 @@ void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 		float Width = 400 * 3.0f * Graphics()->ScreenAspect();
 		float Height = 400 * 3.0f;
 
+		float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
+		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 		Graphics()->MapScreen(0, 0, Width * 1.5f, Height * 1.5f);
 
 		float FontSize = 36.0f;
@@ -132,6 +136,7 @@ void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 		}
 
 		m_aKillmsgs[m_KillmsgCurrent] = Kill;
+		Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
 	}
 }
 
@@ -178,23 +183,28 @@ void CKillMessages::OnRender()
 		{
 			if(m_aKillmsgs[r].m_ModeSpecial & 1)
 			{
-				Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
 				int QuadOffset = 0;
 				if(m_aKillmsgs[r].m_VictimID == m_aKillmsgs[r].m_FlagCarrierBlue)
 					++QuadOffset;
+
+				if(QuadOffset == 0)
+					Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteFlagRed);
+				else
+					Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteFlagBlue);
 
 				Graphics()->RenderQuadContainerAsSprite(m_SpriteQuadContainerIndex, QuadOffset, x, y - 16);
 			}
 		}
 
-		RenderTools()->RenderTee(CAnimState::GetIdle(), &m_aKillmsgs[r].m_VictimRenderInfo, EMOTE_PAIN, vec2(-1, 0), vec2(x, y + 28));
+		if(m_aKillmsgs[r].m_VictimID >= 0)
+			RenderTools()->RenderTee(CAnimState::GetIdle(), &m_aKillmsgs[r].m_VictimRenderInfo, EMOTE_PAIN, vec2(-1, 0), vec2(x, y + 28));
 		x -= 32.0f;
 
 		// render weapon
 		x -= 44.0f;
 		if(m_aKillmsgs[r].m_Weapon >= 0)
 		{
-			Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
+			Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteWeapons[m_aKillmsgs[r].m_Weapon]);
 			Graphics()->RenderQuadContainerAsSprite(m_SpriteQuadContainerIndex, 4 + m_aKillmsgs[r].m_Weapon, x, y + 28);
 		}
 		x -= 52.0f;
@@ -205,11 +215,14 @@ void CKillMessages::OnRender()
 			{
 				if(m_aKillmsgs[r].m_ModeSpecial & 2)
 				{
-					Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
-
 					int QuadOffset = 2;
 					if(m_aKillmsgs[r].m_KillerID == m_aKillmsgs[r].m_FlagCarrierBlue)
 						++QuadOffset;
+
+					if(QuadOffset == 2)
+						Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteFlagRed);
+					else
+						Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteFlagBlue);
 
 					Graphics()->RenderQuadContainerAsSprite(m_SpriteQuadContainerIndex, QuadOffset, x - 56, y - 16);
 				}
@@ -217,7 +230,8 @@ void CKillMessages::OnRender()
 
 			// render killer tee
 			x -= 24.0f;
-			RenderTools()->RenderTee(CAnimState::GetIdle(), &m_aKillmsgs[r].m_KillerRenderInfo, EMOTE_ANGRY, vec2(1, 0), vec2(x, y + 28));
+			if(m_aKillmsgs[r].m_KillerID >= 0)
+				RenderTools()->RenderTee(CAnimState::GetIdle(), &m_aKillmsgs[r].m_KillerRenderInfo, EMOTE_ANGRY, vec2(1, 0), vec2(x, y + 28));
 			x -= 32.0f;
 
 			// render killer name
@@ -228,5 +242,33 @@ void CKillMessages::OnRender()
 		}
 
 		y += 46.0f;
+	}
+}
+
+void CKillMessages::RefindSkins()
+{
+	for(int i = 0; i < MAX_KILLMSGS; i++)
+	{
+		int r = i % MAX_KILLMSGS;
+		if(Client()->GameTick(g_Config.m_ClDummy) > m_aKillmsgs[r].m_Tick + 50 * 10)
+			continue;
+
+		if(m_aKillmsgs[r].m_KillerID >= 0)
+		{
+			CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_KillerID];
+			if(Client.m_aSkinName[0] != '\0')
+				m_aKillmsgs[r].m_KillerRenderInfo = Client.m_RenderInfo;
+			else
+				m_aKillmsgs[r].m_KillerID = -1;
+		}
+
+		if(m_aKillmsgs[r].m_VictimID >= 0)
+		{
+			CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_VictimID];
+			if(Client.m_aSkinName[0] != '\0')
+				m_aKillmsgs[r].m_VictimRenderInfo = Client.m_RenderInfo;
+			else
+				m_aKillmsgs[r].m_VictimID = -1;
+		}
 	}
 }

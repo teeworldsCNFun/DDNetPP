@@ -271,8 +271,8 @@ void CServerBan::ConBanRegionRange(IConsole::IResult *pResult, void *pUser)
 void CServer::CClient::Reset()
 {
 	// reset input
-	for(int i = 0; i < 200; i++)
-		m_aInputs[i].m_GameTick = -1;
+	for(auto &Input : m_aInputs)
+		Input.m_GameTick = -1;
 	m_CurrentInput = 0;
 	mem_zero(&m_LatestInput, sizeof(m_LatestInput));
 
@@ -331,82 +331,98 @@ CServer::CServer() :
 	Init();
 }
 
-int CServer::TrySetClientName(int ClientID, const char *pName)
+bool CServer::IsClientNameAvailable(int ClientID, const char *pNameRequest)
 {
-	char aTrimmedName[64];
-
-	// trim the name
-	str_copy(aTrimmedName, str_utf8_skip_whitespaces(pName), sizeof(aTrimmedName));
-	str_utf8_trim_right(aTrimmedName);
-
 	// check for empty names
-	if(!aTrimmedName[0])
-		return -1;
+	if(!pNameRequest[0])
+		return false;
 
 	// check for names starting with /, as they can be abused to make people
 	// write chat commands
-	if(aTrimmedName[0] == '/')
-		return -1;
+	if(pNameRequest[0] == '/')
+		return false;
 
 	// make sure that two clients don't have the same name
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
 		if(i != ClientID && m_aClients[i].m_State >= CClient::STATE_READY)
 		{
-			if(str_utf8_comp_confusable(aTrimmedName, m_aClients[i].m_aName) == 0)
-				return -1;
+			if(str_utf8_comp_confusable(pNameRequest, m_aClients[i].m_aName) == 0)
+				return false;
 		}
 	}
 
-	char aBuf[256];
-	str_format(aBuf, sizeof(aBuf), "'%s' -> '%s'", pName, aTrimmedName);
-	Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBuf);
-	pName = aTrimmedName;
-
-	// set the client name
-	str_copy(m_aClients[ClientID].m_aName, pName, MAX_NAME_LENGTH);
-	return 0;
+	return true;
 }
 
-void CServer::SetClientName(int ClientID, const char *pName)
+bool CServer::SetClientNameImpl(int ClientID, const char *pNameRequest, bool Set)
 {
-	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
-		return;
+	dbg_assert(0 <= ClientID && ClientID < MAX_CLIENTS, "invalid client id");
+	if(m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return false;
 
-	if(!pName)
-		return;
-
-	CNameBan *pBanned = IsNameBanned(pName, m_aNameBans.base_ptr(), m_aNameBans.size());
-	if(pBanned)
+	if(Set)
 	{
-		if(m_aClients[ClientID].m_State == CClient::STATE_READY)
+		CNameBan *pBanned = IsNameBanned(pNameRequest, m_aNameBans.base_ptr(), m_aNameBans.size());
+		if(pBanned)
 		{
-			char aBuf[256];
-			if(pBanned->m_aReason[0])
+			if(m_aClients[ClientID].m_State == CClient::STATE_READY)
 			{
-				str_format(aBuf, sizeof(aBuf), "Kicked (your name is banned: %s)", pBanned->m_aReason);
+				char aBuf[256];
+				if(pBanned->m_aReason[0])
+				{
+					str_format(aBuf, sizeof(aBuf), "Kicked (your name is banned: %s)", pBanned->m_aReason);
+				}
+				else
+				{
+					str_copy(aBuf, "Kicked (your name is banned)", sizeof(aBuf));
+				}
+				Kick(ClientID, aBuf);
 			}
-			else
-			{
-				str_copy(aBuf, "Kicked (your name is banned)", sizeof(aBuf));
-			}
-			Kick(ClientID, aBuf);
+			return true;
 		}
-		return;
 	}
 
+	// trim the name
+	char aTrimmedName[MAX_NAME_LENGTH];
+	str_copy(aTrimmedName, str_utf8_skip_whitespaces(pNameRequest), sizeof(aTrimmedName));
+	str_utf8_trim_right(aTrimmedName);
+
 	char aNameTry[MAX_NAME_LENGTH];
-	str_copy(aNameTry, pName, sizeof(aNameTry));
-	if(TrySetClientName(ClientID, aNameTry))
+	str_copy(aNameTry, aTrimmedName, sizeof(aNameTry));
+
+	if(!IsClientNameAvailable(ClientID, aNameTry))
 	{
 		// auto rename
 		for(int i = 1;; i++)
 		{
-			str_format(aNameTry, sizeof(aNameTry), "(%d)%s", i, pName);
-			if(TrySetClientName(ClientID, aNameTry) == 0)
+			char aNameTryBrokenEnd[MAX_NAME_LENGTH];
+			str_format(aNameTryBrokenEnd, sizeof(aNameTryBrokenEnd), "(%d)%s", i, aTrimmedName);
+			str_utf8_copy(aNameTry, aNameTryBrokenEnd, sizeof(aNameTry));
+			if(IsClientNameAvailable(ClientID, aNameTry))
 				break;
 		}
 	}
+
+	bool Changed = str_comp(m_aClients[ClientID].m_aName, aNameTry) != 0;
+
+	if(Set)
+	{
+		// set the client name
+		str_copy(m_aClients[ClientID].m_aName, aNameTry, MAX_NAME_LENGTH);
+	}
+
+	return Changed;
+}
+
+bool CServer::WouldClientNameChange(int ClientID, const char *pNameRequest)
+{
+	return SetClientNameImpl(ClientID, pNameRequest, false);
+}
+
+void CServer::SetClientName(int ClientID, const char *pName)
+{
+	SetClientNameImpl(ClientID, pName, true);
 }
 
 void CServer::SetClientClan(int ClientID, const char *pClan)
@@ -490,19 +506,19 @@ int64 CServer::TickStartTime(int Tick)
 
 int CServer::Init()
 {
-	for(int i = 0; i < MAX_CLIENTS; i++)
+	for(auto &Client : m_aClients)
 	{
-		m_aClients[i].m_State = CClient::STATE_EMPTY;
-		m_aClients[i].m_aName[0] = 0;
-		m_aClients[i].m_aClan[0] = 0;
-		m_aClients[i].m_Country = -1;
-		m_aClients[i].m_Snapshots.Init();
-		m_aClients[i].m_Traffic = 0;
-		m_aClients[i].m_TrafficSince = 0;
-		m_aClients[i].m_ShowIps = false;
-		m_aClients[i].m_AuthKey = -1;
-		m_aClients[i].m_Latency = 0;
-		m_aClients[i].m_Sixup = false;
+		Client.m_State = CClient::STATE_EMPTY;
+		Client.m_aName[0] = 0;
+		Client.m_aClan[0] = 0;
+		Client.m_Country = -1;
+		Client.m_Snapshots.Init();
+		Client.m_Traffic = 0;
+		Client.m_TrafficSince = 0;
+		Client.m_ShowIps = false;
+		Client.m_AuthKey = -1;
+		Client.m_Latency = 0;
+		Client.m_Sixup = false;
 	}
 
 	m_CurrentGameTick = 0;
@@ -631,9 +647,9 @@ int CServer::MaxClients() const
 int CServer::ClientCount()
 {
 	int ClientCount = 0;
-	for(int i = 0; i < MAX_CLIENTS; i++)
+	for(auto &Client : m_aClients)
 	{
-		if(m_aClients[i].m_State != CClient::STATE_EMPTY)
+		if(Client.m_State != CClient::STATE_EMPTY)
 		{
 			ClientCount++;
 		}
@@ -2313,8 +2329,6 @@ int CServer::LoadMap(const char *pMapName)
 	sha256_str(m_aCurrentMapSha256[SIX], aSha256, sizeof(aSha256));
 	str_format(aBufMsg, sizeof(aBufMsg), "%s sha256 is %s", aBuf, aSha256);
 	Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBufMsg);
-	str_format(aBufMsg, sizeof(aBufMsg), "%s crc is %08x", aBuf, m_aCurrentMapCrc[SIX]);
-	Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBufMsg);
 
 	str_copy(m_aCurrentMap, pMapName, sizeof(m_aCurrentMap));
 
@@ -2351,8 +2365,6 @@ int CServer::LoadMap(const char *pMapName)
 			m_aCurrentMapCrc[SIXUP] = crc32(0, m_apCurrentMapData[SIXUP], m_aCurrentMapSize[SIXUP]);
 			sha256_str(m_aCurrentMapSha256[SIXUP], aSha256, sizeof(aSha256));
 			str_format(aBufMsg, sizeof(aBufMsg), "%s sha256 is %s", aBuf, aSha256);
-			Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "sixup", aBufMsg);
-			str_format(aBufMsg, sizeof(aBufMsg), "%s crc is %08x", aBuf, m_aCurrentMapCrc[SIXUP]);
 			Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "sixup", aBufMsg);
 		}
 	}
@@ -2576,9 +2588,9 @@ int CServer::Run()
 			{
 				for(int c = 0; c < MAX_CLIENTS; c++)
 					if(m_aClients[c].m_State == CClient::STATE_INGAME)
-						for(int i = 0; i < 200; i++)
-							if(m_aClients[c].m_aInputs[i].m_GameTick == Tick() + 1)
-								GameServer()->OnClientPredictedEarlyInput(c, m_aClients[c].m_aInputs[i].m_aData);
+						for(auto &Input : m_aClients[c].m_aInputs)
+							if(Input.m_GameTick == Tick() + 1)
+								GameServer()->OnClientPredictedEarlyInput(c, Input.m_aData);
 
 				m_CurrentGameTick++;
 				NewTicks++;
@@ -2588,11 +2600,11 @@ int CServer::Run()
 				{
 					if(m_aClients[c].m_State != CClient::STATE_INGAME)
 						continue;
-					for(int i = 0; i < 200; i++)
+					for(auto &Input : m_aClients[c].m_aInputs)
 					{
-						if(m_aClients[c].m_aInputs[i].m_GameTick == Tick())
+						if(Input.m_GameTick == Tick())
 						{
-							GameServer()->OnClientPredictedInput(c, m_aClients[c].m_aInputs[i].m_aData);
+							GameServer()->OnClientPredictedInput(c, Input.m_aData);
 							break;
 						}
 					}
@@ -2633,8 +2645,8 @@ int CServer::Run()
 
 			NonActive = true;
 
-			for(int c = 0; c < MAX_CLIENTS; c++)
-				if(m_aClients[c].m_State != CClient::STATE_EMPTY)
+			for(auto &Client : m_aClients)
+				if(Client.m_State != CClient::STATE_EMPTY)
 					NonActive = false;
 
 			// wait for incoming data
@@ -2690,8 +2702,8 @@ int CServer::Run()
 	GameServer()->OnShutdown();
 	m_pMap->Unload();
 
-	for(int i = 0; i < 2; i++)
-		free(m_apCurrentMapData[i]);
+	for(auto &pCurrentMapData : m_apCurrentMapData)
+		free(pCurrentMapData);
 
 	DbPool()->OnShutdown();
 	delete m_pConnectionPool;
@@ -2807,9 +2819,9 @@ void CServer::AuthRemoveKey(int KeySlot)
 	// Update indices.
 	if(OldKeySlot != NewKeySlot)
 	{
-		for(int i = 0; i < MAX_CLIENTS; i++)
-			if(m_aClients[i].m_AuthKey == OldKeySlot)
-				m_aClients[i].m_AuthKey = NewKeySlot;
+		for(auto &Client : m_aClients)
+			if(Client.m_AuthKey == OldKeySlot)
+				Client.m_AuthKey = NewKeySlot;
 	}
 }
 
@@ -2998,7 +3010,7 @@ void CServer::ConAuthList(IConsole::IResult *pResult, void *pUser)
 void CServer::ConNameBan(IConsole::IResult *pResult, void *pUser)
 {
 	CServer *pThis = (CServer *)pUser;
-	char aBuf[128];
+	char aBuf[256];
 	const char *pName = pResult->GetString(0);
 	const char *pReason = pResult->NumArguments() > 3 ? pResult->GetString(3) : "";
 	int Distance = pResult->NumArguments() > 1 ? pResult->GetInteger(1) : str_length(pName) / 3;
@@ -3033,7 +3045,7 @@ void CServer::ConNameUnban(IConsole::IResult *pResult, void *pUser)
 		CNameBan *pBan = &pThis->m_aNameBans[i];
 		if(str_comp(pBan->m_aName, pName) == 0)
 		{
-			char aBuf[64];
+			char aBuf[128];
 			str_format(aBuf, sizeof(aBuf), "removed name='%s' distance=%d is_substring=%d reason='%s'", pBan->m_aName, pBan->m_Distance, pBan->m_IsSubstring, pBan->m_aReason);
 			pThis->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "name_ban", aBuf);
 			pThis->m_aNameBans.remove_index(i);
@@ -3048,7 +3060,7 @@ void CServer::ConNameBans(IConsole::IResult *pResult, void *pUser)
 	for(int i = 0; i < pThis->m_aNameBans.size(); i++)
 	{
 		CNameBan *pBan = &pThis->m_aNameBans[i];
-		char aBuf[64];
+		char aBuf[128];
 		str_format(aBuf, sizeof(aBuf), "name='%s' distance=%d is_substring=%d reason='%s'", pBan->m_aName, pBan->m_Distance, pBan->m_IsSubstring, pBan->m_aReason);
 		pThis->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "name_ban", aBuf);
 	}
@@ -3446,15 +3458,15 @@ void CServer::RegisterCommands()
 	Console()->Register("add_sqlserver", "s['r'|'w'] s[Database] s[Prefix] s[User] s[Password] s[IP] i[Port] ?i[SetUpDatabase ?]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAddSqlServer, this, "add a sqlserver");
 	Console()->Register("dump_sqlservers", "s['r'|'w']", CFGFLAG_SERVER, ConDumpSqlServers, this, "dumps all sqlservers readservers = r, writeservers = w");
 
-	Console()->Register("auth_add", "s[ident] s[level] s[pw]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthAdd, this, "Add a rcon key");
+	Console()->Register("auth_add", "s[ident] s[level] r[pw]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthAdd, this, "Add a rcon key");
 	Console()->Register("auth_add_p", "s[ident] s[level] s[hash] s[salt]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthAddHashed, this, "Add a prehashed rcon key");
-	Console()->Register("auth_change", "s[ident] s[level] s[pw]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthUpdate, this, "Update a rcon key");
+	Console()->Register("auth_change", "s[ident] s[level] r[pw]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthUpdate, this, "Update a rcon key");
 	Console()->Register("auth_change_p", "s[ident] s[level] s[hash] s[salt]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthUpdateHashed, this, "Update a rcon key with prehashed data");
 	Console()->Register("auth_remove", "s[ident]", CFGFLAG_SERVER | CFGFLAG_NONTEEHISTORIC, ConAuthRemove, this, "Remove a rcon key");
 	Console()->Register("auth_list", "", CFGFLAG_SERVER, ConAuthList, this, "List all rcon keys");
 
-	Console()->Register("name_ban", "s[name] ?i[distance] ?i[is_substring] ?r[reason]", CFGFLAG_SERVER, ConNameBan, this, "Ban a certain nick name");
-	Console()->Register("name_unban", "s[name]", CFGFLAG_SERVER, ConNameUnban, this, "Unban a certain nick name");
+	Console()->Register("name_ban", "s[name] ?i[distance] ?i[is_substring] ?r[reason]", CFGFLAG_SERVER, ConNameBan, this, "Ban a certain nickname");
+	Console()->Register("name_unban", "s[name]", CFGFLAG_SERVER, ConNameUnban, this, "Unban a certain nickname");
 	Console()->Register("name_bans", "", CFGFLAG_SERVER, ConNameBans, this, "List all name bans");
 
 	Console()->Chain("sv_name", ConchainSpecialInfoupdate, this);
@@ -3625,9 +3637,9 @@ const char *CServer::GetAnnouncementLine(char const *pFileName)
 
 	std::vector<char *> v;
 	char *pLine;
-	CLineReader *lr = new CLineReader();
-	lr->Init(File);
-	while((pLine = lr->Get()))
+	CLineReader lr;
+	lr.Init(File);
+	while((pLine = lr.Get()))
 		if(str_length(pLine))
 			if(pLine[0] != '#')
 				v.push_back(pLine);

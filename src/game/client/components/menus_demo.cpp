@@ -136,6 +136,8 @@ void CMenus::RenderDemoPlayer(CUIRect MainView)
 				{
 					m_DemoPlayerState = DEMOPLAYER_NONE;
 					Client()->DemoSlice(aPath, CMenus::DemoFilterChat, &s_RemoveChat);
+					DemolistPopulate();
+					DemolistOnUpdate(false);
 				}
 			}
 		}
@@ -317,9 +319,11 @@ void CMenus::RenderDemoPlayer(CUIRect MainView)
 		}
 
 		// draw time
-		str_format(aBuffer, sizeof(aBuffer), "%d:%02d / %d:%02d",
-			CurrentTick / SERVER_TICK_SPEED / 60, (CurrentTick / SERVER_TICK_SPEED) % 60,
-			TotalTicks / SERVER_TICK_SPEED / 60, (TotalTicks / SERVER_TICK_SPEED) % 60);
+		char aCurrentTime[32];
+		str_time((int64)CurrentTick / SERVER_TICK_SPEED * 100, TIME_HOURS, aCurrentTime, sizeof(aCurrentTime));
+		char aTotalTime[32];
+		str_time((int64)TotalTicks / SERVER_TICK_SPEED * 100, TIME_HOURS, aTotalTime, sizeof(aTotalTime));
+		str_format(aBuffer, sizeof(aBuffer), "%s / %s", aCurrentTime, aTotalTime);
 		UI()->DoLabel(&SeekBar, aBuffer, SeekBar.h * 0.70f, 0);
 
 		// do the logic
@@ -757,10 +761,11 @@ int CMenus::DemolistFetchCallback(const char *pName, time_t Date, int IsDir, int
 		str_format(Item.m_aName, sizeof(Item.m_aName), "%s/", pName);
 		Item.m_InfosLoaded = false;
 		Item.m_Valid = false;
+		Item.m_Date = 0;
 	}
 	else
 	{
-		str_copy(Item.m_aName, pName, minimum(static_cast<int>(sizeof(Item.m_aName)), str_length(pName) - 4));
+		str_truncate(Item.m_aName, sizeof(Item.m_aName), pName, str_length(pName) - 5);
 		Item.m_InfosLoaded = false;
 		Item.m_Date = Date;
 	}
@@ -922,7 +927,7 @@ void CMenus::RenderDemoList(CUIRect MainView)
 		UI()->DoLabelScaled(&Left, Localize("Length:"), 14.0f, -1);
 		int Length = m_lDemos[m_DemolistSelectedIndex].Length();
 		char aBuf[64];
-		str_format(aBuf, sizeof(aBuf), "%d:%02d", Length / 60, Length % 60);
+		str_time((int64)Length * 100, TIME_HOURS, aBuf, sizeof(aBuf));
 		UI()->DoLabelScaled(&Right, aBuf, 14.0f, -1);
 		Labels.HSplitTop(5.0f, 0, &Labels);
 		Labels.HSplitTop(20.0f, &Left, &Labels);
@@ -957,22 +962,21 @@ void CMenus::RenderDemoList(CUIRect MainView)
 		Labels.HSplitTop(5.0f, 0, &Labels);
 		Labels.HSplitTop(20.0f, &Left, &Labels);
 		Left.VSplitLeft(150.0f, &Left, &Right);
-		UI()->DoLabelScaled(&Left, Localize("Crc:"), 14.0f, -1);
-		str_format(aBuf, sizeof(aBuf), "%08x", m_lDemos[m_DemolistSelectedIndex].m_MapInfo.m_Crc);
-		UI()->DoLabelScaled(&Right, aBuf, 14.0f, -1);
-		Labels.HSplitTop(5.0f, 0, &Labels);
-		Labels.HSplitTop(20.0f, &Left, &Labels);
-
 		if(m_lDemos[m_DemolistSelectedIndex].m_MapInfo.m_Sha256 != SHA256_ZEROED)
 		{
-			Left.VSplitLeft(150.0f, &Left, &Right);
 			UI()->DoLabelScaled(&Left, "SHA256:", 14.0f, -1);
 			char aSha[SHA256_MAXSTRSIZE];
 			sha256_str(m_lDemos[m_DemolistSelectedIndex].m_MapInfo.m_Sha256, aSha, sizeof(aSha) / 2);
 			UI()->DoLabelScaled(&Right, aSha, Right.w > 235 ? 14.0f : 11.0f, -1);
-			Labels.HSplitTop(5.0f, 0, &Labels);
-			Labels.HSplitTop(20.0f, &Left, &Labels);
 		}
+		else
+		{
+			UI()->DoLabelScaled(&Left, Localize("Crc:"), 14.0f, -1);
+			str_format(aBuf, sizeof(aBuf), "%08x", m_lDemos[m_DemolistSelectedIndex].m_MapInfo.m_Crc);
+			UI()->DoLabelScaled(&Right, aBuf, 14.0f, -1);
+		}
+		Labels.HSplitTop(5.0f, 0, &Labels);
+		Labels.HSplitTop(20.0f, &Left, &Labels);
 
 		Left.VSplitLeft(150.0f, &Left, &Right);
 		UI()->DoLabelScaled(&Left, Localize("Netversion:"), 14.0f, -1);
@@ -1244,7 +1248,7 @@ void CMenus::RenderDemoList(CUIRect MainView)
 			{
 				int Length = r.front().Length();
 				char aBuf[32];
-				str_format(aBuf, sizeof(aBuf), "%d:%02d", Length / 60, Length % 60);
+				str_time((int64)Length * 100, TIME_HOURS, aBuf, sizeof(aBuf));
 				Button.VMargin(4.0f, &Button);
 				UI()->DoLabelScaled(&Button, aBuf, 12.0f, 1);
 			}

@@ -87,14 +87,16 @@ void CHud::OnInit()
 	// all cursors
 	for(int i = 0; i < NUM_WEAPONS; ++i)
 	{
-		RenderTools()->SelectSprite(g_pData->m_Weapons.m_aId[i].m_pSpriteCursor);
-		RenderTools()->QuadContainerAddSprite(m_HudQuadContainerIndex, 64.f);
+		float ScaleX, ScaleY;
+		RenderTools()->GetSpriteScale(g_pData->m_Weapons.m_aId[i].m_pSpriteCursor, ScaleX, ScaleY);
+		Graphics()->QuadsSetSubset(0, 0, 1, 1);
+		RenderTools()->QuadContainerAddSprite(m_HudQuadContainerIndex, 64.f * ScaleX, 64.f * ScaleY);
 	}
 
 	// the flags
-	RenderTools()->SelectSprite(SPRITE_FLAG_RED);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	RenderTools()->QuadContainerAddSprite(m_HudQuadContainerIndex, 0.f, 0.f, 8.f, 16.f);
-	RenderTools()->SelectSprite(SPRITE_FLAG_BLUE);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	RenderTools()->QuadContainerAddSprite(m_HudQuadContainerIndex, 0.f, 0.f, 8.f, 16.f);
 }
 
@@ -121,22 +123,12 @@ void CHud::RenderGameTimer()
 		else
 			Time = (Client()->GameTick(g_Config.m_ClDummy) - m_pClient->m_Snap.m_pGameInfoObj->m_RoundStartTick) / Client()->GameTickSpeed();
 
-		if(Time <= 0)
-			str_format(aBuf, sizeof(aBuf), "00:00");
-		else if(Time >= 3600 * 24)
-			str_format(aBuf, sizeof(aBuf), "%dd %02d:%02d:%02d", Time / (3600 * 24), (Time % (3600 * 24)) / 3600, (Time % 3600) / 60, Time % 60);
-		else if(Time >= 3600)
-			str_format(aBuf, sizeof(aBuf), "%02d:%02d:%02d", Time / 3600, (Time % 3600) / 60, Time % 60);
-		else
-			str_format(aBuf, sizeof(aBuf), "%02d:%02d", Time / 60, Time % 60);
+		str_time(Time * 100, TIME_DAYS, aBuf, sizeof(aBuf));
 		float FontSize = 10.0f;
 		float w;
-		if(Time >= 3600 * 24)
-			w = TextRender()->TextWidth(0, 12, "00d 00:00:00", -1, -1.0f);
-		else if(Time >= 3600)
-			w = TextRender()->TextWidth(0, 12, "00:00:00", -1, -1.0f);
-		else
-			w = TextRender()->TextWidth(0, 12, "00:00", -1, -1.0f);
+		w = TextRender()->TextWidth(0, 12,
+			Time >= 3600 * 24 ? "00d 00:00:00" : Time >= 3600 ? "00:00:00" : "00:00",
+			-1, -1.0f);
 		// last 60 sec red, last 10 sec blink
 		if(m_pClient->m_Snap.m_pGameInfoObj->m_TimeLimit && Time <= 60 && (m_pClient->m_Snap.m_pGameInfoObj->m_WarmupTimer <= 0))
 		{
@@ -257,8 +249,8 @@ void CHud::RenderScoreHud()
 					if(FlagCarrier[t] == FLAG_ATSTAND || (FlagCarrier[t] == FLAG_TAKEN && ((Client()->GameTick(g_Config.m_ClDummy) / BlinkTimer) & 1)))
 					{
 						// draw flag
-						Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
-						int QuadOffset = NUM_WEAPONS * 10 + 40 + NUM_WEAPONS + t;
+						Graphics()->TextureSet(t == 0 ? GameClient()->m_GameSkin.m_SpriteFlagRed : GameClient()->m_GameSkin.m_SpriteFlagBlue);
+						int QuadOffset = NUM_WEAPONS * 10 * 2 + 40 * 2 + NUM_WEAPONS + t;
 						Graphics()->SetColor(1.f, 1.f, 1.f, 1.f);
 						Graphics()->RenderQuadContainerAsSprite(m_HudQuadContainerIndex, QuadOffset, Whole - ScoreWidthMax - ImageSize, StartY + 1.0f + t * 20);
 					}
@@ -338,13 +330,7 @@ void CHud::RenderScoreHud()
 					if(m_pClient->m_GameInfo.m_TimeScore && g_Config.m_ClDDRaceScoreBoard)
 					{
 						if(apPlayerInfo[t]->m_Score != -9999)
-						{
-							int Secs = abs(apPlayerInfo[t]->m_Score);
-							if(Secs > 3600)
-								str_format(aScore[t], sizeof(aScore[t]), "%02d:%02d:%02d", Secs / 3600, (Secs % 3600) / 60, Secs % 60);
-							else
-								str_format(aScore[t], sizeof(aScore[t]), "%02d:%02d", Secs / 60, Secs % 60);
-						}
+							str_time((int64)abs(apPlayerInfo[t]->m_Score) * 100, TIME_HOURS, aScore[t], sizeof(aScore[t]));
 						else
 							aScore[t][0] = 0;
 					}
@@ -659,10 +645,13 @@ void CHud::RenderCursor()
 		return;
 
 	MapscreenToGroup(m_pClient->m_pCamera->m_Center.x, m_pClient->m_pCamera->m_Center.y, Layers()->GameGroup());
-	Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
+
+	int CurWeapon = m_pClient->m_Snap.m_pLocalCharacter->m_Weapon % NUM_WEAPONS;
+
+	Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteWeaponCursors[CurWeapon]);
 
 	// render cursor
-	int QuadOffset = NUM_WEAPONS * 10 + 40 + (m_pClient->m_Snap.m_pLocalCharacter->m_Weapon % NUM_WEAPONS);
+	int QuadOffset = NUM_WEAPONS * 10 * 2 + 40 * 2 + (CurWeapon);
 	Graphics()->SetColor(1.f, 1.f, 1.f, 1.f);
 	Graphics()->RenderQuadContainerAsSprite(m_HudQuadContainerIndex, QuadOffset, m_pClient->m_pControls->m_TargetPos[g_Config.m_ClDummy].x, m_pClient->m_pControls->m_TargetPos[g_Config.m_ClDummy].y);
 }
@@ -677,32 +666,70 @@ void CHud::PrepareHealthAmoQuads()
 
 	for(int i = 0; i < NUM_WEAPONS; ++i)
 	{
-		RenderTools()->SelectSprite(g_pData->m_Weapons.m_aId[i % NUM_WEAPONS].m_pSpriteProj);
+		Graphics()->QuadsSetSubset(0, 0, 1, 1);
+
+		// 0.6
 		for(int n = 0; n < 10; n++)
 			Array[n] = IGraphics::CQuadItem(x + n * 12, y + 24, 10, 10);
+
+		Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
+
+		// 0.7
+		if(i == WEAPON_GRENADE)
+		{
+			// special case for 0.7 grenade
+			for(int n = 0; n < 10; n++)
+				Array[n] = IGraphics::CQuadItem(1 + x + n * 12, y + 24, 10, 10);
+		}
+		else
+		{
+			for(int n = 0; n < 10; n++)
+				Array[n] = IGraphics::CQuadItem(x + n * 12, y + 24, 12, 12);
+		}
+
 		Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
 	}
 
 	// health
-	RenderTools()->SelectSprite(SPRITE_HEALTH_FULL);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	for(int i = 0; i < 10; ++i)
 		Array[i] = IGraphics::CQuadItem(x + i * 12, y, 10, 10);
 	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
 
-	RenderTools()->SelectSprite(SPRITE_HEALTH_EMPTY);
+	// 0.7
+	for(int i = 0; i < 10; ++i)
+		Array[i] = IGraphics::CQuadItem(x + i * 12, y, 12, 12);
+	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
+
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	for(int i = 0; i < 10; ++i)
 		Array[i] = IGraphics::CQuadItem(x + i * 12, y, 10, 10);
+	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
+
+	// 0.7
+	for(int i = 0; i < 10; ++i)
+		Array[i] = IGraphics::CQuadItem(x + i * 12, y, 12, 12);
 	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
 
 	// armor meter
-	RenderTools()->SelectSprite(SPRITE_ARMOR_FULL);
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	for(int i = 0; i < 10; ++i)
 		Array[i] = IGraphics::CQuadItem(x + i * 12, y + 12, 10, 10);
 	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
 
-	RenderTools()->SelectSprite(SPRITE_ARMOR_EMPTY);
+	// 0.7
+	for(int i = 0; i < 10; ++i)
+		Array[i] = IGraphics::CQuadItem(x + i * 12, y + 12, 12, 12);
+	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
+
+	Graphics()->QuadsSetSubset(0, 0, 1, 1);
 	for(int i = 0; i < 10; ++i)
 		Array[i] = IGraphics::CQuadItem(x + i * 12, y + 12, 10, 10);
+	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
+
+	// 0.7
+	for(int i = 0; i < 10; ++i)
+		Array[i] = IGraphics::CQuadItem(x + i * 12, y + 12, 12, 12);
 	Graphics()->QuadContainerAddQuads(m_HudQuadContainerIndex, Array, 10);
 }
 
@@ -713,22 +740,38 @@ void CHud::RenderHealthAndAmmo(const CNetObj_Character *pCharacter)
 	// render ammo count
 	// render gui stuff
 
-	Graphics()->TextureSet(g_pData->m_aImages[IMAGE_GAME].m_Id);
+	bool IsSixupGameSkin = GameClient()->m_GameSkin.IsSixup();
+	int QuadOffsetSixup = (IsSixupGameSkin ? 10 : 0);
 
-	int QuadOffset = pCharacter->m_Weapon % NUM_WEAPONS * 10;
-	Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, minimum(pCharacter->m_AmmoCount, 10));
+	int CurWeapon = pCharacter->m_Weapon % NUM_WEAPONS;
+	int QuadOffset = (CurWeapon * 2) * 10 + QuadOffsetSixup;
 
-	QuadOffset = NUM_WEAPONS * 10;
+	if(GameClient()->m_GameSkin.m_SpriteWeaponProjectiles[CurWeapon] != -1)
+	{
+		Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteWeaponProjectiles[CurWeapon]);
+
+		Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, minimum(pCharacter->m_AmmoCount, 10));
+	}
+
+	Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteHealthFull);
+
+	QuadOffset = NUM_WEAPONS * 10 * 2 + QuadOffsetSixup;
 	Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, minimum(pCharacter->m_Health, 10));
 
-	QuadOffset += 10 + minimum(pCharacter->m_Health, 10);
+	Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteHealthEmpty);
+
+	QuadOffset += 10 * 2 + minimum(pCharacter->m_Health, 10);
 	if(minimum(pCharacter->m_Health, 10) < 10)
 		Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, 10 - minimum(pCharacter->m_Health, 10));
 
-	QuadOffset = NUM_WEAPONS * 10 + 20;
+	Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteArmorFull);
+
+	QuadOffset = NUM_WEAPONS * 10 * 2 + 20 * 2 + QuadOffsetSixup;
 	Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, minimum(pCharacter->m_Armor, 10));
 
-	QuadOffset += 10 + minimum(pCharacter->m_Armor, 10);
+	Graphics()->TextureSet(GameClient()->m_GameSkin.m_SpriteArmorEmpty);
+
+	QuadOffset += 10 * 2 + minimum(pCharacter->m_Armor, 10);
 	if(minimum(pCharacter->m_Armor, 10) < 10)
 		Graphics()->RenderQuadContainer(m_HudQuadContainerIndex, QuadOffset, 10 - minimum(pCharacter->m_Armor, 10));
 }
@@ -795,7 +838,8 @@ void CHud::OnRender()
 			RenderSpectatorHud();
 		}
 
-		RenderGameTimer();
+		if(g_Config.m_ClShowhudTimer)
+			RenderGameTimer();
 		RenderPauseNotification();
 		RenderSuddenDeath();
 		if(g_Config.m_ClShowhudScore)
@@ -882,9 +926,11 @@ void CHud::RenderDDRaceEffects()
 	if(m_DDRaceTime)
 	{
 		char aBuf[64];
+		char aTime[32];
 		if(m_FinishTime)
 		{
-			str_format(aBuf, sizeof(aBuf), "Finish time: %02d:%02d.%02d", m_DDRaceTime / 6000, m_DDRaceTime / 100 - m_DDRaceTime / 6000 * 60, m_DDRaceTime % 100);
+			str_time(m_DDRaceTime, TIME_HOURS_CENTISECS, aTime, sizeof(aTime));
+			str_format(aBuf, sizeof(aBuf), "Finish time: %s", aTime);
 			TextRender()->Text(0, 150 * Graphics()->ScreenAspect() - TextRender()->TextWidth(0, 12, aBuf, -1, -1.0f) / 2, 20, 12, aBuf, -1.0f);
 		}
 		else if(m_CheckpointTick + Client()->GameTickSpeed() * 6 > Client()->GameTick(g_Config.m_ClDummy))
@@ -919,10 +965,16 @@ void CHud::RenderRecord()
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), Localize("Server best:"));
 		TextRender()->Text(0, 5, 40, 6, aBuf, -1.0f);
+<<<<<<< HEAD
 		if(m_ServerRecord > 3600)
 			str_format(aBuf, sizeof(aBuf), "%02d:%02d:%05.2f", (int)m_ServerRecord / 3600, ((int)m_ServerRecord % 3600) / 60, m_ServerRecord - ((int)m_ServerRecord / 60 * 60));
 		else
 			str_format(aBuf, sizeof(aBuf), "   %02d:%05.2f", (int)m_ServerRecord / 60, m_ServerRecord - ((int)m_ServerRecord / 60 * 60));
+=======
+		char aTime[32];
+		str_time_float(m_ServerRecord, TIME_HOURS_CENTISECS, aTime, sizeof(aTime));
+		str_format(aBuf, sizeof(aBuf), "%s%s", m_ServerRecord > 3600 ? "" : "   ", aTime);
+>>>>>>> ddnet
 		TextRender()->Text(0, 53, 40, 6, aBuf, -1.0f);
 	}
 
@@ -932,10 +984,16 @@ void CHud::RenderRecord()
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), Localize("Personal best:"));
 		TextRender()->Text(0, 5, 47, 6, aBuf, -1.0f);
+<<<<<<< HEAD
 		if(PlayerRecord > 3600)
 			str_format(aBuf, sizeof(aBuf), "%02d:%02d:%05.2f", (int)PlayerRecord / 3600, ((int)PlayerRecord % 3600) / 60, PlayerRecord - ((int)PlayerRecord / 60 * 60));
 		else
 			str_format(aBuf, sizeof(aBuf), "   %02d:%05.2f", (int)PlayerRecord / 60, PlayerRecord - ((int)PlayerRecord / 60 * 60));
+=======
+		char aTime[32];
+		str_time_float(PlayerRecord, TIME_HOURS_CENTISECS, aTime, sizeof(aTime));
+		str_format(aBuf, sizeof(aBuf), "%s%s", PlayerRecord > 3600 ? "" : "   ", aTime);
+>>>>>>> ddnet
 		TextRender()->Text(0, 53, 47, 6, aBuf, -1.0f);
 	}
 }
