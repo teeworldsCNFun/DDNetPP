@@ -1,13 +1,18 @@
 // Hardcoded serverside bots madness
 // created by yung ChillerDragon xd
 
-#include "character.h"
+
 
 #include <engine/server/server.h>
 #include <engine/shared/config.h>
 #include <fstream> //ChillerDragon saving bot move records
 #include <game/server/gamecontext.h>
 #include <string> //ChillerDragon std::getline
+
+#include <game/server/entity.h>
+#include <game/server/player.h>
+
+#include "character.h"
 
 void CCharacter::Fire(bool Fire)
 {
@@ -5024,10 +5029,10 @@ void CCharacter::DummyTick()
 
 					// read world inputs
 					float Offset = 16.0f;
-					int MapIndexL = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x - (m_ProximityRadius / 2) - Offset, m_Pos.y));
-					int MapIndexR = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x + (m_ProximityRadius / 2) + Offset, m_Pos.y));
-					int MapIndexB = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x, m_Pos.y + (m_ProximityRadius / 2) + Offset));
-					int MapIndexT = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x, m_Pos.y - (m_ProximityRadius / 2) - Offset));
+					int MapIndexL = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x - (GetProximityRadius() / 2) - Offset, m_Pos.y));
+					int MapIndexR = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x + (GetProximityRadius() / 2) + Offset, m_Pos.y));
+					int MapIndexB = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x, m_Pos.y + (GetProximityRadius() / 2) + Offset));
+					int MapIndexT = GameServer()->Collision()->GetPureMapIndex(vec2(m_Pos.x, m_Pos.y - (GetProximityRadius() / 2) - Offset));
 					//dbg_msg("","N%d L%d R%d B%d T%d",MapIndex,MapIndexL,MapIndexR,MapIndexB,MapIndexT);
 					int TileIndexL = GameServer()->Collision()->GetTileIndex(MapIndexL);
 					// int TileFlagsL = GameServer()->Collision()->GetTileFlags(MapIndexL);

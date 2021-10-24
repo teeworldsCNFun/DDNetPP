@@ -11,7 +11,7 @@
 
 #include <string>
 
-lock CMysqlConnection::m_SqlDriverLock;
+CLock CMysqlConnection::m_SqlDriverLock;
 
 CMysqlConnection::CMysqlConnection(
 	const char *pDatabase,
@@ -24,7 +24,6 @@ CMysqlConnection::CMysqlConnection(
 	IDbConnection(pPrefix),
 #if defined(CONF_SQL)
 	m_NewQuery(false),
-	m_Locked(false),
 #endif
 	m_Port(Port),
 	m_Setup(Setup),
@@ -117,7 +116,7 @@ IDbConnection::Status CMysqlConnection::Connect()
 
 		// Create connection
 		{
-			scope_lock GlobalLockScope(&m_SqlDriverLock);
+			CScopeLock GlobalLockScope(&m_SqlDriverLock);
 			sql::Driver *pDriver = get_driver_instance();
 			m_pConnection.reset(pDriver->connect(connection_properties));
 		}
@@ -184,27 +183,6 @@ void CMysqlConnection::Disconnect()
 	m_InUse.store(false);
 }
 
-void CMysqlConnection::Lock(const char *pTable)
-{
-#if defined(CONF_SQL)
-	char aBuf[512];
-	str_format(aBuf, sizeof(aBuf), "LOCK TABLES %s;", pTable);
-	m_pStmt->execute(aBuf);
-	m_Locked = true;
-#endif
-}
-
-void CMysqlConnection::Unlock()
-{
-#if defined(CONF_SQL)
-	if(m_Locked)
-	{
-		m_pStmt->execute("UNLOCK TABLES;");
-		m_Locked = false;
-	}
-#endif
-}
-
 void CMysqlConnection::PrepareStatement(const char *pStmt)
 {
 #if defined(CONF_SQL)
@@ -261,6 +239,18 @@ bool CMysqlConnection::Step()
 #endif
 }
 
+int CMysqlConnection::ExecuteUpdate()
+{
+#if defined(CONF_SQL)
+	if(m_NewQuery)
+	{
+		m_NewQuery = false;
+		return m_pPreparedStmt->executeUpdate();
+	}
+#endif
+	return -1;
+}
+
 bool CMysqlConnection::IsNull(int Col) const
 {
 #if defined(CONF_SQL)
@@ -307,6 +297,18 @@ int CMysqlConnection::GetBlob(int Col, unsigned char *pBuffer, int BufferSize) c
 #else
 	return 0;
 #endif
+}
+
+const char *CMysqlConnection::MedianMapTime(char *pBuffer, int BufferSize) const
+{
+	str_format(pBuffer, BufferSize,
+		"SELECT MEDIAN(Time) "
+		"OVER (PARTITION BY Map) "
+		"FROM %s_race "
+		"WHERE Map = l.Map "
+		"LIMIT 1",
+		GetPrefix());
+	return pBuffer;
 }
 
 void CMysqlConnection::AddPoints(const char *pPlayer, int Points)

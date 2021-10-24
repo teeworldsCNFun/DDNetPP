@@ -3,7 +3,9 @@
 #include <cstdio>
 #include <new>
 
+#include "entities/character.h"
 #include "gamemodes/DDRace.h"
+#include "player.h"
 #include "teams.h"
 #include <engine/shared/config.h>
 
@@ -18,7 +20,7 @@ CSaveTee::~CSaveTee()
 void CSaveTee::save(CCharacter *pChr)
 {
 	m_ClientID = pChr->m_pPlayer->GetCID();
-	str_copy(m_aName, pChr->m_pPlayer->Server()->ClientName(m_ClientID), sizeof(m_aName));
+	str_copy(m_aName, pChr->Server()->ClientName(m_ClientID), sizeof(m_aName));
 
 	m_Alive = pChr->m_Alive;
 	m_Paused = abs(pChr->m_pPlayer->IsPaused());
@@ -364,6 +366,7 @@ int CSaveTee::FromString(const char *String)
 		m_HasTelegunGrenade = 0;
 		m_HasTelegunLaser = 0;
 		m_HasTelegunGun = 0;
+		FormatUuid(CalculateUuid("game-uuid-nonexistent@ddnet.tw"), m_aGameUuid, sizeof(m_aGameUuid));
 		// fall through
 	case 101:
 		m_HookedPlayer = -1;
@@ -390,6 +393,11 @@ void CSaveTee::LoadHookedPlayer(const CSaveTeam *pTeam)
 	if(m_HookedPlayer == -1)
 		return;
 	m_HookedPlayer = pTeam->m_pSavedTees[m_HookedPlayer].GetClientID();
+}
+
+bool CSaveTee::IsHooking() const
+{
+	return m_HookState == HOOK_GRABBED || m_HookState == HOOK_FLYING;
 }
 
 CSaveTeam::CSaveTeam(IGameController *Controller)

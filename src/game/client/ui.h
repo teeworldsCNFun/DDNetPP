@@ -102,6 +102,21 @@ public:
 	void HMargin(float Cut, CUIRect *pOtherRect) const;
 };
 
+struct SUIAnimator
+{
+	bool m_Active;
+	bool m_ScaleLabel;
+	bool m_RepositionLabel;
+
+	int64 m_Time;
+	float m_Value;
+
+	float m_XOffset;
+	float m_YOffset;
+	float m_WOffset;
+	float m_HOffset;
+};
+
 class CUI;
 
 class CUIElement
@@ -129,10 +144,7 @@ public:
 		STextRenderColor m_TextColor;
 		STextRenderColor m_TextOutlineColor;
 
-		SUIElementRect() :
-			m_UIRectQuadContainer(-1), m_UITextContainer(-1), m_X(-1), m_Y(-1), m_Width(-1), m_Height(-1)
-		{
-		}
+		SUIElementRect();
 	};
 
 protected:
@@ -171,6 +183,7 @@ class CUI
 	const void *m_pLastActiveItem;
 	const void *m_pBecommingHotItem;
 	float m_MouseX, m_MouseY; // in gui space
+	float m_MouseDeltaX, m_MouseDeltaY; // in gui space
 	float m_MouseWorldX, m_MouseWorldY; // in world space
 	unsigned m_MouseButtons;
 	unsigned m_LastMouseButtons;
@@ -221,12 +234,15 @@ public:
 
 	int Update(float mx, float my, float Mwx, float Mwy, int m_Buttons);
 
+	float MouseDeltaX() const { return m_MouseDeltaX; }
+	float MouseDeltaY() const { return m_MouseDeltaY; }
 	float MouseX() const { return m_MouseX; }
 	float MouseY() const { return m_MouseY; }
 	float MouseWorldX() const { return m_MouseWorldX; }
 	float MouseWorldY() const { return m_MouseWorldY; }
 	int MouseButton(int Index) const { return (m_MouseButtons >> Index) & 1; }
 	int MouseButtonClicked(int Index) { return MouseButton(Index) && !((m_LastMouseButtons >> Index) & 1); }
+	int MouseButtonReleased(int Index) { return ((m_LastMouseButtons >> Index) & 1) && !MouseButton(Index); }
 
 	void SetHotItem(const void *pID) { m_pBecommingHotItem = pID; }
 	void SetActiveItem(const void *pID)

@@ -351,6 +351,10 @@ void CGameClient::OnInit()
 	m_ShowOthers[0] = -1;
 	m_ShowOthers[1] = -1;
 
+	m_LastZoom = .0;
+	m_LastScreenAspect = .0;
+	m_LastDummyConnected = false;
+
 	// Set free binds to DDRace binds if it's active
 	gs_Binds.SetDDRaceBinds(true);
 
@@ -558,6 +562,10 @@ void CGameClient::OnReset()
 	m_DDRaceMsgSent[1] = false;
 	m_ShowOthers[0] = -1;
 	m_ShowOthers[1] = -1;
+
+	m_LastZoom = .0;
+	m_LastScreenAspect = .0;
+	m_LastDummyConnected = false;
 
 	m_ReceivedDDNetPlayer = false;
 }
@@ -988,7 +996,7 @@ void CGameClient::ProcessEvents()
 		if(Item.m_Type == NETEVENTTYPE_DAMAGEIND)
 		{
 			CNetEvent_DamageInd *ev = (CNetEvent_DamageInd *)pData;
-			g_GameClient.m_pEffects->DamageIndicator(vec2(ev->m_X, ev->m_Y), GetDirection(ev->m_Angle));
+			g_GameClient.m_pEffects->DamageIndicator(vec2(ev->m_X, ev->m_Y), direction(ev->m_Angle / 256.0f));
 		}
 		else if(Item.m_Type == NETEVENTTYPE_EXPLOSION)
 		{
@@ -1053,6 +1061,7 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	bool City;
 	bool Vanilla;
 	bool Plus;
+	bool FDDrace;
 	if(Version < 1)
 	{
 		Race = IsRace(pFallbackServerInfo);
@@ -1064,6 +1073,7 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 		City = IsCity(pFallbackServerInfo);
 		Vanilla = IsVanilla(pFallbackServerInfo);
 		Plus = IsPlus(pFallbackServerInfo);
+		FDDrace = false;
 	}
 	else
 	{
@@ -1076,9 +1086,10 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 		Vanilla = Flags & GAMEINFOFLAG_GAMETYPE_VANILLA;
 		Plus = Flags & GAMEINFOFLAG_GAMETYPE_PLUS;
 		City = Version >= 5 && Flags2 & GAMEINFOFLAG2_GAMETYPE_CITY;
+		FDDrace = Version >= 6 && Flags2 & GAMEINFOFLAG2_GAMETYPE_FDDRACE;
 
 		// Ensure invariants upheld by the server info parsing business.
-		DDRace = DDRace || DDNet;
+		DDRace = DDRace || DDNet || FDDrace;
 		Race = Race || FastCap || DDRace;
 	}
 
@@ -1108,6 +1119,7 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	Info.m_Race = Race;
 	Info.m_DontMaskEntities = !DDNet;
 	Info.m_AllowXSkins = false;
+	Info.m_EntitiesFDDrace = FDDrace;
 
 	if(Version >= 0)
 	{
@@ -1148,6 +1160,10 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	if(Version >= 5)
 	{
 		Info.m_AllowXSkins = Flags2 & GAMEINFOFLAG2_ALLOW_X_SKINS;
+	}
+	if(Version >= 6)
+	{
+		Info.m_EntitiesFDDrace = Flags2 & GAMEINFOFLAG2_ENTITIES_FDDRACE;
 	}
 	return Info;
 }
@@ -1629,33 +1645,30 @@ void CGameClient::OnNewSnapshot()
 		m_ShowOthers[g_Config.m_ClDummy] = g_Config.m_ClShowOthers;
 	}
 
-	static float LastZoom = .0;
-	static float LastScreenAspect = .0;
-	static bool LastDummyConnected = false;
 	float ZoomToSend = m_pCamera->m_ZoomSmoothingTarget == .0 ? m_pCamera->m_Zoom // Initial
-			   :
-			   m_pCamera->m_ZoomSmoothingTarget > m_pCamera->m_Zoom ? m_pCamera->m_ZoomSmoothingTarget // Zooming out
-			   :
-			   m_pCamera->m_ZoomSmoothingTarget < m_pCamera->m_Zoom ? LastZoom // Zooming in
-										  :
-                                                                                  m_pCamera->m_Zoom; // Not zooming
-	if(ZoomToSend != LastZoom || Graphics()->ScreenAspect() != LastScreenAspect || (Client()->DummyConnected() && !LastDummyConnected))
+								    :
+								    m_pCamera->m_ZoomSmoothingTarget > m_pCamera->m_Zoom ? m_pCamera->m_ZoomSmoothingTarget // Zooming out
+															   :
+															   m_pCamera->m_ZoomSmoothingTarget < m_pCamera->m_Zoom ? m_LastZoom // Zooming in
+																						  :
+																						  m_pCamera->m_Zoom; // Not zooming
+	if(ZoomToSend != m_LastZoom || Graphics()->ScreenAspect() != m_LastScreenAspect || (Client()->DummyConnected() && !m_LastDummyConnected))
 	{
 		CNetMsg_Cl_ShowDistance Msg;
 		float x, y;
-		RenderTools()->CalcScreenParams(Graphics()->ScreenAspect(), ZoomToSend * 1.25, &x, &y);
+		RenderTools()->CalcScreenParams(Graphics()->ScreenAspect(), ZoomToSend, &x, &y);
 		Msg.m_X = x;
 		Msg.m_Y = y;
 		CMsgPacker Packer(Msg.MsgID(), false);
 		Msg.Pack(&Packer);
-		if(ZoomToSend != LastZoom)
+		if(ZoomToSend != m_LastZoom)
 			Client()->SendMsgY(&Packer, MSGFLAG_VITAL, 0);
 		if(Client()->DummyConnected())
 			Client()->SendMsgY(&Packer, MSGFLAG_VITAL, 1);
-		LastZoom = ZoomToSend;
-		LastScreenAspect = Graphics()->ScreenAspect();
+		m_LastZoom = ZoomToSend;
+		m_LastScreenAspect = Graphics()->ScreenAspect();
 	}
-	LastDummyConnected = Client()->DummyConnected();
+	m_LastDummyConnected = Client()->DummyConnected();
 
 	m_pGhost->OnNewSnapshot();
 	m_pRaceDemo->OnNewSnapshot();
@@ -2659,7 +2672,7 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 		else
 			LoadGameSkin(pPath, true);
 	}
-	else if(PngLoaded)
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridy, true))
 	{
 		m_GameSkin.m_SpriteHealthFull = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_FULL]);
 		m_GameSkin.m_SpriteHealthEmpty = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_EMPTY]);
@@ -2774,7 +2787,7 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 
 		m_GameSkinLoaded = true;
 
-		free(ImgInfo.m_pData);
+		Graphics()->FreePNG(&ImgInfo);
 	}
 }
 
@@ -2812,13 +2825,13 @@ void CGameClient::LoadEmoticonsSkin(const char *pPath, bool AsDir)
 		else
 			LoadEmoticonsSkin(pPath, true);
 	}
-	else if(PngLoaded)
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridy, true))
 	{
 		for(int i = 0; i < 16; ++i)
 			m_EmoticonsSkin.m_SpriteEmoticons[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_OOP + i]);
 
 		m_EmoticonsSkinLoaded = true;
-		free(ImgInfo.m_pData);
+		Graphics()->FreePNG(&ImgInfo);
 	}
 }
 
@@ -2866,7 +2879,7 @@ void CGameClient::LoadParticlesSkin(const char *pPath, bool AsDir)
 		else
 			LoadParticlesSkin(pPath, true);
 	}
-	else if(PngLoaded)
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridy, true))
 	{
 		m_ParticlesSkin.m_SpriteParticleSlice = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SLICE]);
 		m_ParticlesSkin.m_SpriteParticleBall = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_BALL]);

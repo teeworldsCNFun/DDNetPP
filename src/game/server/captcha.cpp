@@ -1,4 +1,6 @@
 #include <engine/shared/config.h>
+#include <game/server/entity.h>
+#include <game/server/entities/drop_pickup.h>
 
 #include "gamecontext.h"
 

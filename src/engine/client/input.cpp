@@ -89,6 +89,8 @@ void CInput::MouseModeRelative()
 	m_InputGrabbed = 1;
 	SDL_SetRelativeMouseMode(SDL_TRUE);
 	Graphics()->SetWindowGrab(true);
+	// We should do this call to reset relative mouse position after alt+tab
+	SDL_GetRelativeMouseState(0x0, 0x0);
 }
 
 int CInput::MouseDoubleClick()
@@ -327,9 +329,7 @@ int CInput::Update()
 				switch(Event.window.event)
 				{
 				case SDL_WINDOWEVENT_RESIZED:
-#if defined(SDL_VIDEO_DRIVER_X11)
 					Graphics()->Resize(Event.window.data1, Event.window.data2);
-#endif
 					break;
 				case SDL_WINDOWEVENT_FOCUS_GAINED:
 					if(m_InputGrabbed)

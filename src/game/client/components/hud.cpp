@@ -877,15 +877,6 @@ void CHud::OnMessage(int MsgType, void *pRawMsg)
 			m_CheckpointTick = Client()->GameTick(g_Config.m_ClDummy);
 		}
 	}
-	else if(MsgType == NETMSGTYPE_SV_KILLMSG)
-	{
-		CNetMsg_Sv_KillMsg *pMsg = (CNetMsg_Sv_KillMsg *)pRawMsg;
-		if(pMsg->m_Victim == m_pClient->m_Snap.m_LocalClientID)
-		{
-			m_CheckpointTick = 0;
-			m_DDRaceTime = 0;
-		}
-	}
 	else if(MsgType == NETMSGTYPE_SV_RECORD)
 	{
 		CNetMsg_Sv_Record *pMsg = (CNetMsg_Sv_Record *)pRawMsg;
@@ -965,16 +956,9 @@ void CHud::RenderRecord()
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), Localize("Server best:"));
 		TextRender()->Text(0, 5, 40, 6, aBuf, -1.0f);
-<<<<<<< HEAD
-		if(m_ServerRecord > 3600)
-			str_format(aBuf, sizeof(aBuf), "%02d:%02d:%05.2f", (int)m_ServerRecord / 3600, ((int)m_ServerRecord % 3600) / 60, m_ServerRecord - ((int)m_ServerRecord / 60 * 60));
-		else
-			str_format(aBuf, sizeof(aBuf), "   %02d:%05.2f", (int)m_ServerRecord / 60, m_ServerRecord - ((int)m_ServerRecord / 60 * 60));
-=======
 		char aTime[32];
 		str_time_float(m_ServerRecord, TIME_HOURS_CENTISECS, aTime, sizeof(aTime));
 		str_format(aBuf, sizeof(aBuf), "%s%s", m_ServerRecord > 3600 ? "" : "   ", aTime);
->>>>>>> ddnet
 		TextRender()->Text(0, 53, 40, 6, aBuf, -1.0f);
 	}
 
@@ -984,16 +968,9 @@ void CHud::RenderRecord()
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), Localize("Personal best:"));
 		TextRender()->Text(0, 5, 47, 6, aBuf, -1.0f);
-<<<<<<< HEAD
-		if(PlayerRecord > 3600)
-			str_format(aBuf, sizeof(aBuf), "%02d:%02d:%05.2f", (int)PlayerRecord / 3600, ((int)PlayerRecord % 3600) / 60, PlayerRecord - ((int)PlayerRecord / 60 * 60));
-		else
-			str_format(aBuf, sizeof(aBuf), "   %02d:%05.2f", (int)PlayerRecord / 60, PlayerRecord - ((int)PlayerRecord / 60 * 60));
-=======
 		char aTime[32];
 		str_time_float(PlayerRecord, TIME_HOURS_CENTISECS, aTime, sizeof(aTime));
 		str_format(aBuf, sizeof(aBuf), "%s%s", PlayerRecord > 3600 ? "" : "   ", aTime);
->>>>>>> ddnet
 		TextRender()->Text(0, 53, 47, 6, aBuf, -1.0f);
 	}
 }

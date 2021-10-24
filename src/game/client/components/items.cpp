@@ -109,7 +109,7 @@ void CItems::RenderProjectile(const CNetObj_Projectile *pCurrent, int ItemID)
 		m_pClient->m_pEffects->BulletTrail(Pos, Alpha);
 
 		if(length(Vel) > 0.00001f)
-			Graphics()->QuadsSetRotation(GetAngle(Vel));
+			Graphics()->QuadsSetRotation(angle(Vel));
 		else
 			Graphics()->QuadsSetRotation(0);
 	}
@@ -256,7 +256,7 @@ void CItems::RenderLaser(const struct CNetObj_Laser *pCurrent, bool IsPredicted)
 		a = clamp(a, 0.0f, 1.0f);
 		float Ia = 1 - a;
 
-		vec2 Out, Border;
+		vec2 Out;
 
 		Graphics()->TextureClear();
 		Graphics()->QuadsBegin();

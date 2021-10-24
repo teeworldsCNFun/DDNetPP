@@ -3,15 +3,17 @@
 #include "pickup.h"
 #include <game/generated/protocol.h>
 #include <game/server/gamecontext.h>
+#include <game/server/player.h>
 
 #include <game/server/teams.h>
 
+#include "character.h"
+
 CPickup::CPickup(CGameWorld *pGameWorld, int Type, int SubType, int Layer, int Number) :
-	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP)
+	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, vec2(0, 0), PickupPhysSize)
 {
 	m_Type = Type;
 	m_Subtype = SubType;
-	m_ProximityRadius = PickupPhysSize;
 
 	m_Layer = Layer;
 	m_Number = Number;
@@ -63,7 +65,7 @@ void CPickup::Tick()
 			int RespawnTime = -1;
 			if(DDPPIntersect(pChr, &RespawnTime))
 				continue;
-			if(m_Layer == LAYER_SWITCH && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[pChr->Team()])
+			if(m_Layer == LAYER_SWITCH && m_Number > 0 && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[pChr->Team()])
 				continue;
 			bool Sound = false;
 			// player picked us up, is someone was hooking us, let them go
@@ -173,13 +175,13 @@ void CPickup::Snap(int SnappingClient)
 
 	int Tick = (Server()->Tick() % Server()->TickSpeed()) % 11;
 	if(Char && Char->IsAlive() &&
-		(m_Layer == LAYER_SWITCH &&
+		(m_Layer == LAYER_SWITCH && m_Number > 0 &&
 			!GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Char->Team()]) &&
 		(!Tick))
 		return;
 
 	int Size = Server()->IsSixup(SnappingClient) ? 3 * 4 : sizeof(CNetObj_Pickup);
-	CNetObj_Pickup *pP = static_cast<CNetObj_Pickup *>(Server()->SnapNewItem(NETOBJTYPE_PICKUP, m_ID, Size));
+	CNetObj_Pickup *pP = static_cast<CNetObj_Pickup *>(Server()->SnapNewItem(NETOBJTYPE_PICKUP, GetID(), Size));
 	if(!pP)
 		return;
 

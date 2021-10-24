@@ -6,7 +6,6 @@
 #include <engine/antibot.h>
 #include <engine/console.h>
 #include <engine/server.h>
-#include <engine/shared/memheap.h>
 
 #include <game/layers.h>
 #include <game/mapbugs.h>
@@ -16,15 +15,14 @@
 #include <base/tl/string.h>
 #include <game/server/letters.h>
 
+
 #include "eventhandler.h"
-#include "gamecontroller.h"
+//#include "gamecontroller.h"
 #include "gameworld.h"
-#include "player.h"
 #include "teehistorian.h"
 
 #include "db_sqlite3.h"
 
-#include "score.h"
 #include <memory>
 
 #ifdef _MSC_VER
@@ -62,8 +60,12 @@ enum
 	NUM_TUNEZONES = 256
 };
 
+class CConfig;
+class CHeap;
+class CPlayer;
 class CScore;
 class IConsole;
+class IGameController;
 class IEngine;
 class IStorage;
 struct CAntibotData;
@@ -72,6 +74,7 @@ struct CScoreRandomMapResult;
 class CGameContext : public IGameServer
 {
 	IServer *m_pServer;
+	CConfig *m_pConfig;
 	IConsole *m_pConsole;
 	IEngine *m_pEngine;
 	IStorage *m_pStorage;
@@ -134,6 +137,7 @@ class CGameContext : public IGameServer
 
 public:
 	IServer *Server() const { return m_pServer; }
+	CConfig *Config() { return m_pConfig; }
 	IConsole *Console() { return m_pConsole; }
 	IEngine *Engine() { return m_pEngine; }
 	IStorage *Storage() { return m_pStorage; }
@@ -226,6 +230,8 @@ public:
 	void SendEmoticon(int ClientID, int Emoticon);
 	void SendWeaponPickup(int ClientID, int Weapon);
 	void SendBroadcast(const char *pText, int ClientID, int importance = 1, bool supermod = false);
+	void SendMotd(int ClientID);
+	void SendSettings(int ClientID);
 
 	void List(int ClientID, const char *filter);
 
@@ -809,6 +815,8 @@ private:
 	static void ConKillPlayer(IConsole::IResult *pResult, void *pUserData);
 
 	static void ConNinja(IConsole::IResult *pResult, void *pUserData);
+	static void ConEndlessHook(IConsole::IResult *pResult, void *pUserData);
+	static void ConUnEndlessHook(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnSolo(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnDeep(IConsole::IResult *pResult, void *pUserData);
 	static void ConShotgun(IConsole::IResult *pResult, void *pUserData);

@@ -1020,6 +1020,7 @@ set(EXPECTED_DATA
   editor/entities_clear/blockworlds.png
   editor/entities_clear/ddnet.png
   editor/entities_clear/ddrace.png
+  editor/entities_clear/f-ddrace.png
   editor/entities_clear/fng.png
   editor/entities_clear/race.png
   editor/entities_clear/vanilla.png
@@ -1050,6 +1051,7 @@ set(EXPECTED_DATA
   gui_cursor.png
   gui_icons.png
   gui_logo.png
+  languages/arabic.txt
   languages/belarusian.txt
   languages/bosnian.txt
   languages/brazilian_portuguese.txt
@@ -1316,6 +1318,8 @@ set(EXPECTED_DATA
   themes/jungle.png
   themes/jungle_day.map
   themes/jungle_night.map
+  themes/newyear.map
+  themes/newyear.png
   themes/none.png
   themes/rand.png
   themes/winter.png
@@ -1479,6 +1483,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   config.h
   console.h
   demo.h
+  discord.h
   editor.h
   engine.h
   friends.h
@@ -1516,8 +1521,6 @@ set_src(ENGINE_SHARED GLOB src/engine/shared
   datafile.h
   demo.cpp
   demo.h
-  dilate.cpp
-  dilate.h
   econ.cpp
   econ.h
   engine.cpp
@@ -1528,6 +1531,8 @@ set_src(ENGINE_SHARED GLOB src/engine/shared
   global_uuid_manager.cpp
   huffman.cpp
   huffman.h
+  image_manipulation.cpp
+  image_manipulation.h
   jobs.cpp
   jobs.h
   json.cpp
@@ -1578,6 +1583,7 @@ set_src(GAME_SHARED GLOB src/game
   collision.cpp
   collision.h
   collision_ddpp.cpp
+  ddracechat.h
   ddracecommands.h
   extrainfo.cpp
   extrainfo.h
@@ -1668,6 +1674,7 @@ if(CLIENT)
     client.h
     demoedit.cpp
     demoedit.h
+    discord.cpp
     friends.cpp
     friends.h
     ghost.cpp
@@ -1958,12 +1965,12 @@ if(SERVER)
     upnp.h
   )
   set_src(GAME_SERVER GLOB_RECURSE src/game/server
+    alloc.h
     captcha.cpp
     captcha.h
     db_sqlite3.cpp
     db_sqlite3.h
     ddracechat.cpp
-    ddracechat.h
     ddracechat_ddpp.cpp
     ddracecommands.cpp
     ddracecommands_ddpp.cpp
@@ -2032,6 +2039,7 @@ if(SERVER)
     gamecontroller.h
     gamemodes/DDRace.cpp
     gamemodes/DDRace.h
+    gamemodes/DDRace_ddpp.cpp
     gamemodes/ctf.cpp
     gamemodes/gamemode.h
     gameworld.cpp
@@ -2133,6 +2141,7 @@ if(TOOLS)
     map_convert_07.cpp
     map_diff.cpp
     map_extract.cpp
+    map_optimize.cpp
     map_replace_image.cpp
     map_resave.cpp
     packetgen.cpp

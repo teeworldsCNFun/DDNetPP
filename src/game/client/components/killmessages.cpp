@@ -6,6 +6,7 @@
 #include <game/generated/client_data.h>
 #include <game/generated/protocol.h>
 
+#include "engine/shared/protocol.h"
 #include "killmessages.h"
 #include <game/client/animstate.h>
 #include <game/client/gameclient.h>
@@ -63,6 +64,32 @@ void CKillMessages::OnInit()
 	}
 }
 
+void CKillMessages::CreateKillmessageNamesIfNotCreated(CKillMsg &Kill)
+{
+	const float FontSize = 36.0f;
+	if(Kill.m_VictimTextContainerIndex == -1 && Kill.m_aVictimName[0] != 0)
+	{
+		Kill.m_VitctimTextWidth = TextRender()->TextWidth(0, FontSize, Kill.m_aVictimName, -1, -1.0f);
+
+		CTextCursor Cursor;
+		TextRender()->SetCursor(&Cursor, 0, 0, FontSize, TEXTFLAG_RENDER);
+		Cursor.m_LineWidth = -1;
+
+		Kill.m_VictimTextContainerIndex = TextRender()->CreateTextContainer(&Cursor, Kill.m_aVictimName);
+	}
+
+	if(Kill.m_KillerTextContainerIndex == -1 && Kill.m_aKillerName[0] != 0)
+	{
+		Kill.m_KillerTextWidth = TextRender()->TextWidth(0, FontSize, Kill.m_aKillerName, -1, -1.0f);
+
+		CTextCursor Cursor;
+		TextRender()->SetCursor(&Cursor, 0, 0, FontSize, TEXTFLAG_RENDER);
+		Cursor.m_LineWidth = -1;
+
+		Kill.m_KillerTextContainerIndex = TextRender()->CreateTextContainer(&Cursor, Kill.m_aKillerName);
+	}
+}
+
 void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 {
 	if(MsgType == NETMSGTYPE_SV_KILLMSG)
@@ -71,16 +98,25 @@ void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 
 		// unpack messages
 		CKillMsg Kill;
+		Kill.m_aVictimName[0] = '\0';
+		Kill.m_aKillerName[0] = '\0';
+
 		Kill.m_VictimID = pMsg->m_Victim;
-		Kill.m_VictimTeam = m_pClient->m_aClients[Kill.m_VictimID].m_Team;
-		Kill.m_VictimDDTeam = m_pClient->m_Teams.Team(Kill.m_VictimID);
-		str_copy(Kill.m_aVictimName, m_pClient->m_aClients[Kill.m_VictimID].m_aName, sizeof(Kill.m_aVictimName));
-		Kill.m_VictimRenderInfo = m_pClient->m_aClients[Kill.m_VictimID].m_RenderInfo;
+		if(Kill.m_VictimID >= 0 && Kill.m_VictimID < MAX_CLIENTS)
+		{
+			Kill.m_VictimTeam = m_pClient->m_aClients[Kill.m_VictimID].m_Team;
+			Kill.m_VictimDDTeam = m_pClient->m_Teams.Team(Kill.m_VictimID);
+			str_copy(Kill.m_aVictimName, m_pClient->m_aClients[Kill.m_VictimID].m_aName, sizeof(Kill.m_aVictimName));
+			Kill.m_VictimRenderInfo = m_pClient->m_aClients[Kill.m_VictimID].m_RenderInfo;
+		}
 
 		Kill.m_KillerID = pMsg->m_Killer;
-		Kill.m_KillerTeam = m_pClient->m_aClients[Kill.m_KillerID].m_Team;
-		str_copy(Kill.m_aKillerName, m_pClient->m_aClients[Kill.m_KillerID].m_aName, sizeof(Kill.m_aKillerName));
-		Kill.m_KillerRenderInfo = m_pClient->m_aClients[Kill.m_KillerID].m_RenderInfo;
+		if(Kill.m_KillerID >= 0 && Kill.m_KillerID < MAX_CLIENTS)
+		{
+			Kill.m_KillerTeam = m_pClient->m_aClients[Kill.m_KillerID].m_Team;
+			str_copy(Kill.m_aKillerName, m_pClient->m_aClients[Kill.m_KillerID].m_aName, sizeof(Kill.m_aKillerName));
+			Kill.m_KillerRenderInfo = m_pClient->m_aClients[Kill.m_KillerID].m_RenderInfo;
+		}
 
 		Kill.m_Weapon = pMsg->m_Weapon;
 		Kill.m_ModeSpecial = pMsg->m_ModeSpecial;
@@ -97,45 +133,31 @@ void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 		Graphics()->MapScreen(0, 0, Width * 1.5f, Height * 1.5f);
 
-		float FontSize = 36.0f;
-		if(Kill.m_aVictimName[0] != 0)
+		CreateKillmessageNamesIfNotCreated(Kill);
+
+		bool KillMsgValid = (Kill.m_VictimRenderInfo.m_CustomColoredSkin && Kill.m_VictimRenderInfo.m_ColorableRenderSkin.m_Body != -1) || (!Kill.m_VictimRenderInfo.m_CustomColoredSkin && Kill.m_VictimRenderInfo.m_OriginalRenderSkin.m_Body != -1);
+		// if killer != victim, killer must be valid too
+		KillMsgValid &= Kill.m_KillerID == Kill.m_VictimID || ((Kill.m_KillerRenderInfo.m_CustomColoredSkin && Kill.m_KillerRenderInfo.m_ColorableRenderSkin.m_Body != -1) || (!Kill.m_KillerRenderInfo.m_CustomColoredSkin && Kill.m_KillerRenderInfo.m_OriginalRenderSkin.m_Body != -1));
+		if(KillMsgValid)
 		{
-			Kill.m_VitctimTextWidth = TextRender()->TextWidth(0, FontSize, Kill.m_aVictimName, -1, -1.0f);
+			// add the message
+			m_KillmsgCurrent = (m_KillmsgCurrent + 1) % MAX_KILLMSGS;
 
-			CTextCursor Cursor;
-			TextRender()->SetCursor(&Cursor, 0, 0, FontSize, TEXTFLAG_RENDER);
-			Cursor.m_LineWidth = -1;
+			if(m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex != -1)
+			{
+				TextRender()->DeleteTextContainer(m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex);
+				m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex = -1;
+			}
 
-			Kill.m_VictimTextContainerIndex = TextRender()->CreateTextContainer(&Cursor, Kill.m_aVictimName);
+			if(m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex != -1)
+			{
+				TextRender()->DeleteTextContainer(m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex);
+				m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex = -1;
+			}
+
+			m_aKillmsgs[m_KillmsgCurrent] = Kill;
 		}
 
-		if(Kill.m_aKillerName[0] != 0)
-		{
-			Kill.m_KillerTextWidth = TextRender()->TextWidth(0, FontSize, Kill.m_aKillerName, -1, -1.0f);
-
-			CTextCursor Cursor;
-			TextRender()->SetCursor(&Cursor, 0, 0, FontSize, TEXTFLAG_RENDER);
-			Cursor.m_LineWidth = -1;
-
-			Kill.m_KillerTextContainerIndex = TextRender()->CreateTextContainer(&Cursor, Kill.m_aKillerName);
-		}
-
-		// add the message
-		m_KillmsgCurrent = (m_KillmsgCurrent + 1) % MAX_KILLMSGS;
-
-		if(m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex != -1)
-		{
-			TextRender()->DeleteTextContainer(m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex);
-			m_aKillmsgs[m_KillmsgCurrent].m_VictimTextContainerIndex = -1;
-		}
-
-		if(m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex != -1)
-		{
-			TextRender()->DeleteTextContainer(m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex);
-			m_aKillmsgs[m_KillmsgCurrent].m_KillerTextContainerIndex = -1;
-		}
-
-		m_aKillmsgs[m_KillmsgCurrent] = Kill;
 		Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
 	}
 }
@@ -172,6 +194,8 @@ void CKillMessages::OnRender()
 			ColorRGBA rgb = color_cast<ColorRGBA>(ColorHSLA(m_aKillmsgs[r].m_VictimDDTeam / 64.0f, 1.0f, 0.75f));
 			TColor.Set(rgb.r, rgb.g, rgb.b, 1.0f);
 		}
+
+		CreateKillmessageNamesIfNotCreated(m_aKillmsgs[r]);
 
 		if(m_aKillmsgs[r].m_VictimTextContainerIndex != -1)
 			TextRender()->RenderTextContainer(m_aKillmsgs[r].m_VictimTextContainerIndex, &TColor, &TOutlineColor, x, y + (46.f - 36.f) / 2.f);

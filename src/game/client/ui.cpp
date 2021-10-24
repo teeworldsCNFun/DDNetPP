@@ -13,6 +13,14 @@ void CUIElement::Init(CUI *pUI)
 	pUI->AddUIElement(this);
 }
 
+CUIElement::SUIElementRect::SUIElementRect() :
+	m_UIRectQuadContainer(-1), m_UITextContainer(-1), m_X(-1), m_Y(-1), m_Width(-1), m_Height(-1)
+{
+	mem_zero(&m_Cursor, sizeof(m_Cursor));
+	mem_zero(&m_TextColor, sizeof(m_TextColor));
+	mem_zero(&m_TextOutlineColor, sizeof(m_TextOutlineColor));
+}
+
 /********************************************************
  UI
 *********************************************************/
@@ -95,6 +103,8 @@ void CUI::OnLanguageChange()
 
 int CUI::Update(float Mx, float My, float Mwx, float Mwy, int Buttons)
 {
+	m_MouseDeltaX = Mx - m_MouseX;
+	m_MouseDeltaY = My - m_MouseY;
 	m_MouseX = Mx;
 	m_MouseY = My;
 	m_MouseWorldX = Mwx;
@@ -377,20 +387,16 @@ int CUI::DoPickerLogic(const void *pID, const CUIRect *pRect, float *pX, float *
 {
 	int Inside = MouseInside(pRect);
 
-	if(ActiveItem() == pID)
-	{
-		if(!MouseButton(0))
-			SetActiveItem(0);
-	}
-	else if(HotItem() == pID)
-	{
-		if(MouseButton(0))
-			SetActiveItem(pID);
-	}
-	else if(Inside)
+	if(Inside)
 		SetHotItem(pID);
 
-	if(!Inside || !MouseButton(0))
+	if(HotItem() == pID && MouseButtonClicked(0))
+		SetActiveItem(pID);
+
+	if(ActiveItem() == pID && !MouseButton(0))
+		SetActiveItem(0);
+
+	if(ActiveItem() != pID)
 		return 0;
 
 	if(pX)

@@ -178,13 +178,13 @@ CSnapshotDelta::CSnapshotDelta()
 	mem_zero(&m_Empty, sizeof(m_Empty));
 }
 
-CSnapshotDelta::CSnapshotDelta(const CSnapshotDelta &old)
+CSnapshotDelta::CSnapshotDelta(const CSnapshotDelta &Old)
 {
-	mem_copy(m_aItemSizes, old.m_aItemSizes, sizeof(m_aItemSizes));
-	mem_copy(m_aSnapshotDataRate, old.m_aSnapshotDataRate, sizeof(m_aSnapshotDataRate));
-	mem_copy(m_aSnapshotDataUpdates, old.m_aSnapshotDataUpdates, sizeof(m_aSnapshotDataUpdates));
-	mem_copy(&m_SnapshotCurrent, &old.m_SnapshotCurrent, sizeof(m_SnapshotCurrent));
-	mem_copy(&m_Empty, &old.m_Empty, sizeof(m_Empty));
+	mem_copy(m_aItemSizes, Old.m_aItemSizes, sizeof(m_aItemSizes));
+	mem_copy(m_aSnapshotDataRate, Old.m_aSnapshotDataRate, sizeof(m_aSnapshotDataRate));
+	mem_copy(m_aSnapshotDataUpdates, Old.m_aSnapshotDataUpdates, sizeof(m_aSnapshotDataUpdates));
+	mem_copy(&m_SnapshotCurrent, &Old.m_SnapshotCurrent, sizeof(m_SnapshotCurrent));
+	mem_copy(&m_Empty, &Old.m_Empty, sizeof(m_Empty));
 }
 
 void CSnapshotDelta::SetStaticsize(int ItemType, int Size)
@@ -203,7 +203,7 @@ CSnapshotDelta::CData *CSnapshotDelta::EmptyDelta()
 int CSnapshotDelta::CreateDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pDstData)
 {
 	CData *pDelta = (CData *)pDstData;
-	int *pData = (int *)pDelta->m_pData;
+	int *pData = (int *)pDelta->m_aData;
 	int i, ItemSize, PastIndex;
 	CSnapshotItem *pFromItem;
 	CSnapshotItem *pCurItem;
@@ -215,14 +215,14 @@ int CSnapshotDelta::CreateDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pDstData
 	pDelta->m_NumUpdateItems = 0;
 	pDelta->m_NumTempItems = 0;
 
-	CItemList Hashlist[HASHLIST_SIZE];
-	GenerateHash(Hashlist, pTo);
+	CItemList aHashlist[HASHLIST_SIZE];
+	GenerateHash(aHashlist, pTo);
 
 	// pack deleted stuff
 	for(i = 0; i < pFrom->NumItems(); i++)
 	{
 		pFromItem = pFrom->GetItem(i);
-		if(GetItemIndexHashed(pFromItem->Key(), Hashlist) == -1)
+		if(GetItemIndexHashed(pFromItem->Key(), aHashlist) == -1)
 		{
 			// deleted
 			pDelta->m_NumDeletedItems++;
@@ -231,7 +231,7 @@ int CSnapshotDelta::CreateDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pDstData
 		}
 	}
 
-	GenerateHash(Hashlist, pFrom);
+	GenerateHash(aHashlist, pFrom);
 	int aPastIndices[1024];
 
 	// fetch previous indices
@@ -240,7 +240,7 @@ int CSnapshotDelta::CreateDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pDstData
 	for(i = 0; i < NumItems; i++)
 	{
 		pCurItem = pTo->GetItem(i); // O(1) .. O(n)
-		aPastIndices[i] = GetItemIndexHashed(pCurItem->Key(), Hashlist); // O(n) .. O(n^n)
+		aPastIndices[i] = GetItemIndexHashed(pCurItem->Key(), aHashlist); // O(n) .. O(n^n)
 	}
 
 	for(i = 0; i < NumItems; i++)
@@ -322,7 +322,7 @@ int CSnapshotDelta::UnpackDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pSrcData
 {
 	CSnapshotBuilder Builder;
 	CData *pDelta = (CData *)pSrcData;
-	int *pData = (int *)pDelta->m_pData;
+	int *pData = (int *)pDelta->m_aData;
 	int *pEnd = (int *)(((char *)pSrcData + DataSize));
 
 	CSnapshotItem *pFromItem;
@@ -358,10 +358,12 @@ int CSnapshotDelta::UnpackDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pSrcData
 
 		if(Keep)
 		{
+			void *pObj = Builder.NewItem(pFromItem->Type(), pFromItem->ID(), ItemSize);
+			if(!pObj)
+				return -4;
+
 			// keep it
-			mem_copy(
-				Builder.NewItem(pFromItem->Type(), pFromItem->ID(), ItemSize),
-				pFromItem->Data(), ItemSize);
+			mem_copy(pObj, pFromItem->Data(), ItemSize);
 		}
 	}
 
@@ -397,7 +399,8 @@ int CSnapshotDelta::UnpackDelta(CSnapshot *pFrom, CSnapshot *pTo, void *pSrcData
 		if(!pNewData)
 			pNewData = (int *)Builder.NewItem(Key >> 16, Key & 0xffff, ItemSize);
 
-		//if(range_check(pEnd, pNewData, ItemSize)) return -4;
+		if(!pNewData)
+			return -4;
 
 		FromIndex = pFrom->GetItemIndex(Key);
 		if(FromIndex != -1)
@@ -564,11 +567,11 @@ int *CSnapshotBuilder::GetItemData(int Key)
 	return 0;
 }
 
-int CSnapshotBuilder::Finish(void *SpnapData)
+int CSnapshotBuilder::Finish(void *pSnapData)
 {
 	//dbg_msg("snap", "---------------------------");
 	// flattern and make the snapshot
-	CSnapshot *pSnap = (CSnapshot *)SpnapData;
+	CSnapshot *pSnap = (CSnapshot *)pSnapData;
 	int OffsetSize = sizeof(int) * m_NumItems;
 	pSnap->m_DataSize = m_DataSize;
 	pSnap->m_NumItems = m_NumItems;
@@ -588,13 +591,16 @@ void CSnapshotBuilder::AddExtendedItemType(int Index)
 	int TypeID = m_aExtendedItemTypes[Index];
 	CUuid Uuid = g_UuidManager.GetUuid(TypeID);
 	int *pUuidItem = (int *)NewItem(0, GetTypeFromIndex(Index), sizeof(Uuid)); // NETOBJTYPE_EX
-	for(int i = 0; i < (int)sizeof(CUuid) / 4; i++)
+	if(pUuidItem)
 	{
-		pUuidItem[i] =
-			(Uuid.m_aData[i * 4 + 0] << 24) |
-			(Uuid.m_aData[i * 4 + 1] << 16) |
-			(Uuid.m_aData[i * 4 + 2] << 8) |
-			(Uuid.m_aData[i * 4 + 3]);
+		for(int i = 0; i < (int)sizeof(CUuid) / 4; i++)
+		{
+			pUuidItem[i] =
+				(Uuid.m_aData[i * 4 + 0] << 24) |
+				(Uuid.m_aData[i * 4 + 1] << 16) |
+				(Uuid.m_aData[i * 4 + 2] << 8) |
+				(Uuid.m_aData[i * 4 + 3]);
+		}
 	}
 }
 

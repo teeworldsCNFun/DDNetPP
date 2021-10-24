@@ -27,6 +27,8 @@
 
 #include <mastersrv/mastersrv.h>
 
+#include <game/server/entity.h>
+
 // DDRace
 #include <base/ddpp_logs.h>
 #include <engine/shared/linereader.h>

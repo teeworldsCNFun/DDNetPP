@@ -517,27 +517,14 @@ void CMenus::UiDoListboxStart(const void *pID, const CUIRect *pRect, float RowHe
 {
 	CUIRect Scroll, Row;
 	CUIRect View = *pRect;
-	CUIRect Header, Footer;
 
 	if(!LogicOnly)
 	{
-		// draw header
-		View.HSplitTop(ms_ListheaderHeight, &Header, &View);
-		RenderTools()->DrawUIRect(&Header, ColorRGBA(1, 1, 1, 0.25f), CUI::CORNER_T, 5.0f);
-		UI()->DoLabel(&Header, pTitle, Header.h * ms_FontmodHeight, 0);
-
-		// draw footers
-		View.HSplitBottom(ms_ListheaderHeight, &View, &Footer);
-		RenderTools()->DrawUIRect(&Footer, ColorRGBA(1, 1, 1, 0.25f), CUI::CORNER_B, 5.0f);
-		Footer.VSplitLeft(10.0f, 0, &Footer);
-		UI()->DoLabel(&Footer, pBottomText, Header.h * ms_FontmodHeight, 0);
-
 		// background
-		RenderTools()->DrawUIRect(&View, ColorRGBA(0, 0, 0, 0.15f), 0, 0);
+		RenderTools()->DrawUIRect(&View, ColorRGBA(0, 0, 0, 0.15f), CUI::CORNER_ALL, 5.0f);
 	}
 
-	// prepare the scroll
-	View.VSplitRight(15, &View, &Scroll);
+	View.VSplitRight(10, &View, &Scroll);
 
 	// setup the variables
 	gs_ListBoxOriginalView = View;
@@ -555,39 +542,25 @@ void CMenus::UiDoListboxStart(const void *pID, const CUIRect *pRect, float RowHe
 	// do the scrollbar
 	View.HSplitTop(gs_ListBoxRowHeight, &Row, 0);
 
-	int NumViewable = (int)(gs_ListBoxOriginalView.h / Row.h) + 1;
-	int Num = (NumItems + gs_ListBoxItemsPerRow - 1) / gs_ListBoxItemsPerRow - NumViewable + 1;
+	int NumViewable = (int)(gs_ListBoxOriginalView.h / Row.h) * gs_ListBoxItemsPerRow;
+	//int Num = (NumItems + gs_ListBoxItemsPerRow - 1) / gs_ListBoxItemsPerRow - NumViewable + 1;
+	int Num = ceil((NumItems - NumViewable) / (float)gs_ListBoxItemsPerRow);
 	if(Num <= 0)
 	{
 		Num = 0;
 	}
-	else if(Num == 1)
-	{
-		if(Input()->KeyPress(KEY_MOUSE_WHEEL_UP) && UI()->MouseInside(&View))
-			gs_ListBoxScrollValue -= 0.1f;
-		if(Input()->KeyPress(KEY_MOUSE_WHEEL_DOWN) && UI()->MouseInside(&View))
-			gs_ListBoxScrollValue += 0.1f;
-
-		if(gs_ListBoxScrollValue < 0.0f)
-			gs_ListBoxScrollValue = 0.0f;
-		if(gs_ListBoxScrollValue > 1.0f)
-			gs_ListBoxScrollValue = 1.0f;
-	}
 	else
 	{
 		if(Input()->KeyPress(KEY_MOUSE_WHEEL_UP) && UI()->MouseInside(&View))
-			gs_ListBoxScrollValue -= 3.0f / Num;
+			gs_ListBoxScrollValue -= Num == 1 ? 0.1f : 3.0f / Num;
 		if(Input()->KeyPress(KEY_MOUSE_WHEEL_DOWN) && UI()->MouseInside(&View))
-			gs_ListBoxScrollValue += 3.0f / Num;
-
-		if(gs_ListBoxScrollValue < 0.0f)
-			gs_ListBoxScrollValue = 0.0f;
-		if(gs_ListBoxScrollValue > 1.0f)
-			gs_ListBoxScrollValue = 1.0f;
+			gs_ListBoxScrollValue += Num == 1 ? 0.1f : 3.0f / Num;
 	}
 
-	Scroll.HMargin(5.0f, &Scroll);
-	gs_ListBoxScrollValue = DoScrollbarV(pID, &Scroll, gs_ListBoxScrollValue);
+	if(Num == 0)
+		gs_ListBoxScrollValue = 0;
+	else
+		gs_ListBoxScrollValue = clamp(DoScrollbarV(pID, &Scroll, gs_ListBoxScrollValue), 0.0f, 1.0f);
 
 	// the list
 	gs_ListBoxView = gs_ListBoxOriginalView;
@@ -1079,86 +1052,26 @@ void CMenus::RenderDemoList(CUIRect MainView)
 	CUIRect Scroll;
 	ListBox.VSplitRight(15, &ListBox, &Scroll);
 
-	int Num = (int)(ListBox.h / s_aCols[0].m_Rect.h) + 1;
 	static int s_ScrollBar = 0;
 	static float s_ScrollValue = 0;
 
 	Scroll.HMargin(5.0f, &Scroll);
 	s_ScrollValue = DoScrollbarV(&s_ScrollBar, &Scroll, s_ScrollValue);
 
-	int ScrollNum = m_lDemos.size() - Num + 1;
-	if(ScrollNum > 0)
+	int PreviousIndex = m_DemolistSelectedIndex;
+	HandleListInputs(ListBox, s_ScrollValue, 3.0f, &m_ScrollOffset, s_aCols[0].m_Rect.h, m_DemolistSelectedIndex, m_lDemos.size());
+	if(PreviousIndex != m_DemolistSelectedIndex)
 	{
-		if(m_ScrollOffset)
-		{
-			s_ScrollValue = (float)(m_ScrollOffset) / ScrollNum;
-			m_ScrollOffset = 0;
-		}
-		if(Input()->KeyPress(KEY_MOUSE_WHEEL_UP) && UI()->MouseInside(&ListBox))
-			s_ScrollValue -= 3.0f / ScrollNum;
-		if(Input()->KeyPress(KEY_MOUSE_WHEEL_DOWN) && UI()->MouseInside(&ListBox))
-			s_ScrollValue += 3.0f / ScrollNum;
+		str_copy(g_Config.m_UiDemoSelected, m_lDemos[m_DemolistSelectedIndex].m_aName, sizeof(g_Config.m_UiDemoSelected));
+		DemolistOnUpdate(false);
 	}
-	else
-		ScrollNum = 0;
-
-	if(m_DemolistSelectedIndex > -1)
-	{
-		for(int i = 0; i < m_NumInputEvents; i++)
-		{
-			int NewIndex = -1;
-			if(m_aInputEvents[i].m_Flags & IInput::FLAG_PRESS)
-			{
-				if(m_aInputEvents[i].m_Key == KEY_DOWN)
-					NewIndex = m_DemolistSelectedIndex + 1;
-				else if(m_aInputEvents[i].m_Key == KEY_UP)
-					NewIndex = m_DemolistSelectedIndex - 1;
-				else if(m_aInputEvents[i].m_Key == KEY_PAGEUP)
-					NewIndex = maximum(m_DemolistSelectedIndex - 20, 0);
-				else if(m_aInputEvents[i].m_Key == KEY_PAGEDOWN)
-					NewIndex = minimum(m_DemolistSelectedIndex + 20, m_lDemos.size() - 1);
-				else if(m_aInputEvents[i].m_Key == KEY_HOME)
-					NewIndex = 0;
-				else if(m_aInputEvents[i].m_Key == KEY_END)
-					NewIndex = m_lDemos.size() - 1;
-			}
-			if(NewIndex > -1 && NewIndex < m_lDemos.size())
-			{
-				//scroll
-				float IndexY = ListBox.y - s_ScrollValue * ScrollNum * s_aCols[0].m_Rect.h + NewIndex * s_aCols[0].m_Rect.h;
-				int Scroll = ListBox.y > IndexY ? -1 : ListBox.y + ListBox.h < IndexY + s_aCols[0].m_Rect.h ? 1 :
-                                                                                                                              0;
-				if(Scroll)
-				{
-					if(Scroll < 0)
-					{
-						int NumScrolls = (ListBox.y - IndexY + s_aCols[0].m_Rect.h - 1.0f) / s_aCols[0].m_Rect.h;
-						s_ScrollValue -= (1.0f / ScrollNum) * NumScrolls;
-					}
-					else
-					{
-						int NumScrolls = (IndexY + s_aCols[0].m_Rect.h - (ListBox.y + ListBox.h) + s_aCols[0].m_Rect.h - 1.0f) / s_aCols[0].m_Rect.h;
-						s_ScrollValue += (1.0f / ScrollNum) * NumScrolls;
-					}
-				}
-
-				m_DemolistSelectedIndex = NewIndex;
-
-				str_copy(g_Config.m_UiDemoSelected, m_lDemos[NewIndex].m_aName, sizeof(g_Config.m_UiDemoSelected));
-				DemolistOnUpdate(false);
-			}
-		}
-	}
-
-	if(s_ScrollValue < 0)
-		s_ScrollValue = 0;
-	if(s_ScrollValue > 1)
-		s_ScrollValue = 1;
 
 	// set clipping
 	UI()->ClipEnable(&ListBox);
 
 	CUIRect OriginalView = ListBox;
+	int Num = (int)(ListBox.h / s_aCols[0].m_Rect.h) + 1;
+	int ScrollNum = maximum(m_lDemos.size() - Num + 1, 0);
 	ListBox.y -= s_ScrollValue * ScrollNum * s_aCols[0].m_Rect.h;
 
 	int NewSelected = -1;

@@ -1,10 +1,11 @@
 
 #include "dummybase.h"
 
-#include "../character.h"
 #include <engine/shared/config.h>
 #include <game/server/gamecontext.h>
 #include <game/server/player.h>
+
+#include "../character.h"
 
 CDummyBase::CDummyBase(class CCharacter *pChr, class CPlayer *pPlayer)
 {

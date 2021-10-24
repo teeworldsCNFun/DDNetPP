@@ -1,5 +1,7 @@
 #include <game/server/gamecontext.h>
 
+#include "character.h"
+
 #include "plant.h"
 
 CPlant::CPlant(CGameWorld *pGameWorld, vec2 Pos) :
@@ -144,7 +146,7 @@ void CPlant::Snap(int SnappingClient)
 	if(NetworkClipped(SnappingClient))
 		return;
 
-	CNetObj_Projectile *pProj = static_cast<CNetObj_Projectile *>(Server()->SnapNewItem(NETOBJTYPE_PROJECTILE, m_ID, sizeof(CNetObj_Projectile)));
+	CNetObj_Projectile *pProj = static_cast<CNetObj_Projectile *>(Server()->SnapNewItem(NETOBJTYPE_PROJECTILE, GetID(), sizeof(CNetObj_Projectile)));
 	if(!pProj)
 		return;
 

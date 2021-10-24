@@ -1,6 +1,7 @@
 #ifndef GAME_SERVER_ENTITIES_DROP_PICKUP_H
 #define GAME_SERVER_ENTITIES_DROP_PICKUP_H
 
+
 class CDropPickup : public CEntity
 {
 public:

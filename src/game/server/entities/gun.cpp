@@ -4,8 +4,10 @@
 #include <engine/shared/config.h>
 #include <game/generated/protocol.h>
 #include <game/server/gamecontext.h>
+#include <game/server/player.h>
 #include <game/server/teams.h>
 
+#include "character.h"
 #include "gun.h"
 #include "plasma.h"
 
@@ -46,7 +48,7 @@ void CGun::Fire()
 		//now gun doesn't affect on super
 		if(Target->Team() == TEAM_SUPER)
 			continue;
-		if(m_Layer == LAYER_SWITCH && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Target->Team()])
+		if(m_Layer == LAYER_SWITCH && m_Number > 0 && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Target->Team()])
 			continue;
 		int res = GameServer()->Collision()->IntersectLine(m_Pos, Target->m_Pos, 0, 0);
 		if(!res)
@@ -120,9 +122,9 @@ void CGun::Snap(int SnappingClient)
 		Char = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID);
 
 	int Tick = (Server()->Tick() % Server()->TickSpeed()) % 11;
-	if(Char && Char->IsAlive() && (m_Layer == LAYER_SWITCH && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Char->Team()]) && (!Tick))
+	if(Char && Char->IsAlive() && (m_Layer == LAYER_SWITCH && m_Number > 0 && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Char->Team()]) && (!Tick))
 		return;
-	CNetObj_Laser *pObj = static_cast<CNetObj_Laser *>(Server()->SnapNewItem(NETOBJTYPE_LASER, m_ID, sizeof(CNetObj_Laser)));
+	CNetObj_Laser *pObj = static_cast<CNetObj_Laser *>(Server()->SnapNewItem(NETOBJTYPE_LASER, GetID(), sizeof(CNetObj_Laser)));
 
 	if(!pObj)
 		return;

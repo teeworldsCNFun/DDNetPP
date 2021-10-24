@@ -35,7 +35,7 @@ CChat::CChat()
 	}
 
 #define CHAT_COMMAND(name, params, flags, callback, userdata, help) RegisterCommand(name, params, flags, help);
-#include <game/server/ddracechat.h>
+#include <game/ddracechat.h>
 	m_Commands.sort_range();
 
 	m_Mode = MODE_NONE;
@@ -151,13 +151,7 @@ void CChat::ConEcho(IConsole::IResult *pResult, void *pUserData)
 	((CChat *)pUserData)->Echo(pResult->GetString(0));
 }
 
-void CChat::ConchainChatTee(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
-{
-	pfnCallback(pResult, pCallbackUserData);
-	((CChat *)pUserData)->RebuildChat();
-}
-
-void CChat::ConchainChatBackground(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+void CChat::ConchainChatOld(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	pfnCallback(pResult, pCallbackUserData);
 	((CChat *)pUserData)->RebuildChat();
@@ -175,8 +169,7 @@ void CChat::OnConsoleInit()
 	Console()->Register("chat", "s['team'|'all'] ?r[message]", CFGFLAG_CLIENT, ConChat, this, "Enable chat with all/team mode");
 	Console()->Register("+show_chat", "", CFGFLAG_CLIENT, ConShowChat, this, "Show chat");
 	Console()->Register("echo", "r[message]", CFGFLAG_CLIENT, ConEcho, this, "Echo the text in chat window");
-	Console()->Chain("cl_chat_tee", ConchainChatTee, this);
-	Console()->Chain("cl_chat_background", ConchainChatBackground, this);
+	Console()->Chain("cl_chat_old", ConchainChatOld, this);
 }
 
 bool CChat::OnInput(IInput::CEvent Event)
@@ -565,7 +558,7 @@ bool CChat::LineShouldHighlight(const char *pLine, const char *pName)
 	{
 		int Length = str_length(pName);
 
-		if((pLine == pHL || pHL[-1] == ' ') && (pHL[Length] == 0 || pHL[Length] == ' ' || pHL[Length] == '.' || pHL[Length] == '!' || pHL[Length] == ',' || pHL[Length] == '?' || pHL[Length] == ':'))
+		if(Length > 0 && (pLine == pHL || pHL[-1] == ' ') && (pHL[Length] == 0 || pHL[Length] == ' ' || pHL[Length] == '.' || pHL[Length] == '!' || pHL[Length] == ',' || pHL[Length] == '?' || pHL[Length] == ':'))
 			return true;
 	}
 
@@ -674,6 +667,8 @@ void CChat::AddLine(int ClientID, int Team, const char *pLine)
 	if(*p == 0)
 		return;
 
+	bool IgnoreLine = false;
+
 	while(*p)
 	{
 		Highlighted = false;
@@ -704,7 +699,11 @@ void CChat::AddLine(int ClientID, int Team, const char *pLine)
 			pCurrentLine->m_Time = time();
 			pCurrentLine->m_YOffset[0] = -1.f;
 			pCurrentLine->m_YOffset[1] = -1.f;
-			return;
+			// Can't return here because we still want to log the message to console,
+			// even if we ignore it in chat. We will set the new line, fill it out
+			// totally, but then in the end revert back m_CurrentLine after writing
+			// the message to console.
+			IgnoreLine = true;
 		}
 
 		m_CurrentLine = (m_CurrentLine + 1) % MAX_LINES;
@@ -729,7 +728,7 @@ void CChat::AddLine(int ClientID, int Team, const char *pLine)
 		// check for highlighted name
 		if(Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		{
-			if(ClientID != m_pClient->m_LocalIDs[0])
+			if(ClientID >= 0 && ClientID != m_pClient->m_LocalIDs[0])
 			{
 				// main character
 				if(LineShouldHighlight(pLine, m_pClient->m_aClients[m_pClient->m_LocalIDs[0]].m_aName))
@@ -819,6 +818,12 @@ void CChat::AddLine(int ClientID, int Team, const char *pLine)
 		char aBuf[1024];
 		str_format(aBuf, sizeof(aBuf), "%s: %s", pCurrentLine->m_aName, pCurrentLine->m_aText);
 		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, Team >= 2 ? "whisper" : (pCurrentLine->m_Team ? "teamchat" : "chat"), aBuf, Highlighted);
+	}
+
+	if(IgnoreLine)
+	{
+		m_CurrentLine = (m_CurrentLine + MAX_LINES - 1) % MAX_LINES;
+		return;
 	}
 
 	// play sound
@@ -954,7 +959,7 @@ void CChat::OnPrepareLines()
 		if(g_Config.m_ClShowIDs && m_aLines[r].m_ClientID >= 0 && m_aLines[r].m_aName[0] != '\0')
 		{
 			if(m_aLines[r].m_ClientID < 10)
-				str_format(aName, sizeof(aName), " %d: ", m_aLines[r].m_ClientID);
+				str_format(aName, sizeof(aName), " %d: ", m_aLines[r].m_ClientID);
 			else
 				str_format(aName, sizeof(aName), "%d: ", m_aLines[r].m_ClientID);
 		}

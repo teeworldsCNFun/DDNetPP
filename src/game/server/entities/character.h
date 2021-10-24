@@ -4,20 +4,7 @@
 #define GAME_SERVER_ENTITIES_CHARACTER_H
 
 #include <deque>
-#include <engine/antibot.h>
-#include <game/generated/protocol.h>
-#include <game/generated/server_data.h>
-#include <game/server/entities/stable_projectile.h>
-#include <game/server/entity.h>
-#include <game/server/save.h>
 
-#include <game/gamecore.h>
-
-#include "dummy/blmapchill_police.h"
-#include <vector>
-
-#include "drop_pickup.h"
-#include "weapon.h"
 
 #define NUM_ATOMS 6
 #define NUM_TRAILS 20
@@ -28,16 +15,22 @@
 #define V3_OFFSET_X 0 * 32 //was 277
 #define V3_OFFSET_Y 0 * 32 //was 48
 
+#include <game/server/entity.h>
+#include <game/server/save.h>
+
+#include <engine/antibot.h>
+#include <game/server/entities/stable_projectile.h>
+
+
+#include "dummy/blmapchill_police.h"
+#include <vector>
+
+#include "weapon.h"
+#include "drop_pickup.h"
+
 class CAntibot;
 class CGameTeams;
 struct CAntibotCharacterData;
-
-enum
-{
-	WEAPON_GAME = -3, // team switching etc
-	WEAPON_SELF = -2, // console kill command
-	WEAPON_WORLD = -1, // death tiles etc
-};
 
 enum
 {
@@ -71,8 +64,6 @@ public:
 	virtual void TickDefered();
 	virtual void TickPaused();
 	virtual void Snap(int SnappingClient);
-	virtual int NetworkClipped(int SnappingClient);
-	virtual int NetworkClipped(int SnappingClient, vec2 CheckPos);
 
 	bool IsGrounded();
 
@@ -102,6 +93,7 @@ public:
 	bool GiveWeapon(int Weapon, bool Remove = false, int Ammo = -1);
 	void GiveNinja();
 	void RemoveNinja();
+	void SetEndlessHook(bool Enable);
 
 	void SetEmote(int Emote, int Tick);
 
@@ -182,6 +174,10 @@ private:
 
 	// the player core for the physics
 	CCharacterCore m_Core;
+	CGameTeams *m_pTeams = nullptr;
+
+	std::map<int, std::vector<vec2>> *m_pTeleOuts = nullptr;
+	std::map<int, std::vector<vec2>> *m_pTeleCheckOuts = nullptr;
 
 	// info for dead reckoning
 	int m_ReckoningTick; // tick that we are performing dead reckoning From
@@ -210,13 +206,17 @@ private:
 	bool m_Solo;
 
 public:
-	CGameTeams *Teams();
+	CGameTeams *Teams() { return m_pTeams; }
+	void SetTeams(CGameTeams *pTeams);
+	void SetTeleports(std::map<int, std::vector<vec2>> *pTeleOuts, std::map<int, std::vector<vec2>> *pTeleCheckOuts);
+
 	void FillAntibot(CAntibotCharacterData *pData);
 	void Pause(bool Pause);
 	bool Freeze(float Time);
 	bool Freeze();
 	bool UnFreeze();
 	void GiveAllWeapons();
+	void ResetPickups();
 	int m_DDRaceState;
 	int Team();
 	bool CanCollide(int ClientID);
@@ -287,11 +287,11 @@ public:
 	int GetWeaponAmmo(int Type) { return m_aWeapons[Type].m_Ammo; };
 	void SetWeaponAmmo(int Type, int Value) { m_aWeapons[Type].m_Ammo = Value; };
 	bool IsAlive() { return m_Alive; };
-	void SetEmoteType(int EmoteType) { m_EmoteType = EmoteType; };
-	void SetEmoteStop(int EmoteStop) { m_EmoteStop = EmoteStop; };
 	void SetNinjaActivationDir(vec2 ActivationDir) { m_Ninja.m_ActivationDir = ActivationDir; };
 	void SetNinjaActivationTick(int ActivationTick) { m_Ninja.m_ActivationTick = ActivationTick; };
 	void SetNinjaCurrentMoveTime(int CurrentMoveTime) { m_Ninja.m_CurrentMoveTime = CurrentMoveTime; };
+
+	int GetLastAction() const { return m_LastAction; }
 
 	bool HasTelegunGun() { return m_Core.m_HasTelegunGun; };
 	bool HasTelegunGrenade() { return m_Core.m_HasTelegunGrenade; };

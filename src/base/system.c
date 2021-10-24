@@ -1,6 +1,7 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -362,6 +363,7 @@ int io_flush(IOHANDLE io)
 #define ASYNC_BUFSIZE 8 * 1024
 #define ASYNC_LOCAL_BUFSIZE 64 * 1024
 
+// TODO: Use Thread Safety Analysis when this file is converted to C++
 struct ASYNCIO
 {
 	LOCK lock;
@@ -411,7 +413,7 @@ static void buffer_ptrs(ASYNCIO *aio, struct BUFFERS *buffers)
 	}
 }
 
-static void aio_handle_free_and_unlock(ASYNCIO *aio)
+static void aio_handle_free_and_unlock(ASYNCIO *aio) RELEASE(aio->lock)
 {
 	int do_free;
 	aio->refcount--;
@@ -547,12 +549,12 @@ static unsigned int next_buffer_size(unsigned int cur_size, unsigned int need_si
 	return cur_size;
 }
 
-void aio_lock(ASYNCIO *aio)
+void aio_lock(ASYNCIO *aio) ACQUIRE(aio->lock)
 {
 	lock_wait(aio->lock);
 }
 
-void aio_unlock(ASYNCIO *aio)
+void aio_unlock(ASYNCIO *aio) RELEASE(aio->lock)
 {
 	lock_unlock(aio->lock);
 	sphore_signal(&aio->sphore);
@@ -840,6 +842,10 @@ int lock_trylock(LOCK lock)
 #endif
 }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-analysis"
+#endif
 void lock_wait(LOCK lock)
 {
 #if defined(CONF_FAMILY_UNIX)
@@ -865,6 +871,9 @@ void lock_unlock(LOCK lock)
 #error not implemented on this platform
 #endif
 }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #if defined(CONF_FAMILY_WINDOWS)
 void sphore_init(SEMAPHORE *sem)
@@ -1639,12 +1648,11 @@ int net_udp_recv(NETSOCKET sock, NETADDR *addr, void *buffer, int maxsize, MMSGS
 	if(m->pos < m->size)
 	{
 		sockaddr_to_netaddr((struct sockaddr *)&(m->sockaddrs[m->pos]), addr);
-		// TODO: network_stats
-		//network_stats.recv_bytes += bytes;
-		//network_stats.recv_packets++;
 		bytes = m->msgs[m->pos].msg_len;
 		*data = (unsigned char *)m->bufs[m->pos];
 		m->pos++;
+		network_stats.recv_bytes += bytes;
+		network_stats.recv_packets++;
 		return bytes;
 	}
 #else
@@ -2312,6 +2320,11 @@ int time_season(void)
 	time(&time_data);
 	time_info = localtime(&time_data);
 
+	if((time_info->tm_mon == 11 && time_info->tm_mday == 31) || (time_info->tm_mon == 0 && time_info->tm_mday == 1))
+	{
+		return SEASON_NEWYEAR;
+	}
+
 	switch(time_info->tm_mon)
 	{
 	case 11:
@@ -2425,19 +2438,6 @@ char *str_trim_words(char *str, int words)
 		str++;
 	}
 	return str;
-}
-
-/* makes sure that the string only contains the characters between 32 and 127 */
-void str_sanitize_strong(char *str_in)
-{
-	unsigned char *str = (unsigned char *)str_in;
-	while(*str)
-	{
-		*str &= 0x7f;
-		if(*str < 32)
-			*str = 32;
-		str++;
-	}
 }
 
 /* makes sure that the string only contains the characters between 32 and 255 */
@@ -2903,7 +2903,7 @@ int str_time(int64 centisecs, int format, char *buffer, int buffer_size)
 
 int str_time_float(float secs, int format, char *buffer, int buffer_size)
 {
-	return str_time((int64)(secs * 100.0), format, buffer, buffer_size);
+	return str_time(llroundf(secs * 100.0), format, buffer, buffer_size);
 }
 
 void str_escape(char **dst, const char *src, const char *end)
@@ -3355,7 +3355,7 @@ PROCESS shell_execute(const char *file)
 	info.cbSize = sizeof(SHELLEXECUTEINFOA);
 	info.lpVerb = "open";
 	info.lpFile = file;
-	info.nShow = SW_SHOWDEFAULT;
+	info.nShow = SW_SHOWMINNOACTIVE;
 	info.fMask = SEE_MASK_NOCLOSEPROCESS;
 	ShellExecuteEx(&info);
 	return info.hProcess;

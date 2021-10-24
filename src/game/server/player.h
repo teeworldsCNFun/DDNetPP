@@ -3,6 +3,8 @@
 #ifndef GAME_SERVER_PLAYER_H
 #define GAME_SERVER_PLAYER_H
 
+#include "alloc.h"
+
 // this include should perhaps be removed
 #include "captcha.h"
 #include "entities/character.h"
@@ -16,16 +18,21 @@
 
 #define ACC_MAX_LEVEL 110 // WARNING!!! if you increase this value make sure to append needexp until max-1 in player.cpp:CalcExp()
 #include "gamecontext.h"
-#include "score.h"
 #include "teeinfo.h"
-#include <memory>
+
+#include <game/server/entities/weapon.h>
+
+enum
+{
+	WEAPON_GAME = -3, // team switching etc
+	WEAPON_SELF = -2, // console kill command
+	WEAPON_WORLD = -1, // death tiles etc
+};
 
 // player object
 class CPlayer
 {
 	MACRO_ALLOC_POOL_ID()
-
-	friend class CSaveTee;
 
 public:
 	CPlayer(CGameContext *pGameServer, int ClientID, int Team);
@@ -143,6 +150,11 @@ private:
 	int64 m_ForcePauseTime;
 	int64 m_LastPause;
 
+	int m_DefEmote;
+	int m_OverrideEmote;
+	int m_OverrideEmoteReset;
+	bool m_Halloween;
+
 public:
 	enum
 	{
@@ -198,13 +210,16 @@ public:
 	int m_Sent1stAfkWarning; // afk timer's 1st warning after 50% of sv_max_afk_time
 	int m_Sent2ndAfkWarning; // afk timer's 2nd warning after 90% of sv_max_afk_time
 	char m_pAfkMsg[160];
-	bool m_EyeEmote;
+	bool m_EyeEmoteEnabled;
 	int m_TimerType;
-	int m_DefEmote;
-	int m_DefEmoteReset;
-	bool m_Halloween;
+
+	int GetDefaultEmote() const;
+	void OverrideDefaultEmote(int Emote, int Tick);
+	bool CanOverrideDefaultEmote() const;
+
 	bool m_FirstPacket;
 	int64 m_LastSQLQuery;
+	class CScorePlayerResult;
 	void ProcessScoreResult(CScorePlayerResult &Result);
 	std::shared_ptr<CScorePlayerResult> m_ScoreQueryResult;
 	std::shared_ptr<CScorePlayerResult> m_ScoreFinishResult;

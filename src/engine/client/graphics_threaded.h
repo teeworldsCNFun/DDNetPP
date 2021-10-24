@@ -64,7 +64,7 @@ public:
 
 	enum
 	{
-		MAX_TEXTURES = 1024 * 32,
+		MAX_TEXTURES = 1024 * 8,
 		MAX_VERTICES = 32 * 1024,
 	};
 
@@ -213,7 +213,7 @@ public:
 	{
 		SCommand_Signal() :
 			SCommand(CMD_SIGNAL) {}
-		semaphore *m_pSemaphore;
+		CSemaphore *m_pSemaphore;
 	};
 
 	struct SCommand_RunBuffer : public SCommand
@@ -398,6 +398,7 @@ public:
 		int m_BufferContainerIndex;
 		SQuadRenderInfo *m_pQuadInfo;
 		int m_QuadNum;
+		int m_QuadOffset;
 	};
 
 	struct SCommand_RenderText : public SCommand
@@ -659,6 +660,8 @@ public:
 	virtual int WindowActive() = 0;
 	virtual int WindowOpen() = 0;
 	virtual void SetWindowGrab(bool Grab) = 0;
+	virtual void ResizeWindow(int w, int h) = 0;
+	virtual void GetViewportSize(int &w, int &h) = 0;
 	virtual void NotifyWindow() = 0;
 
 	virtual void RunBuffer(CCommandBuffer *pBuffer) = 0;
@@ -720,7 +723,7 @@ class CGraphics_Threaded : public IEngineGraphics
 
 	CTextureHandle m_InvalidTexture;
 
-	int m_aTextureIndices[CCommandBuffer::MAX_TEXTURES];
+	std::vector<int> m_TextureIndices;
 	int m_FirstFreeTexture;
 	int m_TextureMemoryUsage;
 
@@ -844,6 +847,9 @@ public:
 	// simple uncompressed RGBA loaders
 	IGraphics::CTextureHandle LoadTexture(const char *pFilename, int StorageType, int StoreFormat, int Flags) override;
 	int LoadPNG(CImageInfo *pImg, const char *pFilename, int StorageType) override;
+	void FreePNG(CImageInfo *pImg) override;
+
+	bool CheckImageDivisibility(const char *pFileName, CImageInfo &Img, int DivX, int DivY, bool AllowResize) override;
 
 	void CopyTextureBufferSub(uint8_t *pDestBuffer, uint8_t *pSourceBuffer, int FullWidth, int FullHeight, int ColorChannelCount, int SubOffsetX, int SubOffsetY, int SubCopyWidth, int SubCopyHeight) override;
 	void CopyTextureFromTextureBufferSub(uint8_t *pDestBuffer, int DestWidth, int DestHeight, uint8_t *pSourceBuffer, int SrcWidth, int SrcHeight, int ColorChannelCount, int SrcSubOffsetX, int SrcSubOffsetY, int SrcSubCopyWidth, int SrcSubCopyHeight) override;
@@ -1087,7 +1093,7 @@ public:
 	void RenderTileLayer(int BufferContainerIndex, float *pColor, char **pOffsets, unsigned int *IndicedVertexDrawNum, size_t NumIndicesOffet) override;
 	void RenderBorderTiles(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, int JumpIndex, unsigned int DrawNum) override;
 	void RenderBorderTileLines(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, unsigned int IndexDrawNum, unsigned int RedrawNum) override;
-	void RenderQuadLayer(int BufferContainerIndex, SQuadRenderInfo *pQuadInfo, int QuadNum) override;
+	void RenderQuadLayer(int BufferContainerIndex, SQuadRenderInfo *pQuadInfo, int QuadNum, int QuadOffset) override;
 	void RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, float *pTextColor, float *pTextoutlineColor) override;
 
 	// opengl 3.3 functions
@@ -1109,7 +1115,7 @@ public:
 	bool Fullscreen(bool State) override;
 	void SetWindowBordered(bool State) override;
 	bool SetWindowScreen(int Index) override;
-	void Resize(int w, int h) override;
+	void Resize(int w, int h, bool SetWindowSize = false) override;
 	void AddWindowResizeListener(WINDOW_RESIZE_FUNC pFunc, void *pUser) override;
 	int GetWindowScreen() override;
 
@@ -1133,7 +1139,7 @@ public:
 	virtual int GetDesktopScreenHeight() { return m_DesktopScreenHeight; }
 
 	// synchronization
-	void InsertSignal(semaphore *pSemaphore) override;
+	void InsertSignal(CSemaphore *pSemaphore) override;
 	bool IsIdle() override;
 	void WaitForIdle() override;
 

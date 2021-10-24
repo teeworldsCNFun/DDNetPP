@@ -89,6 +89,7 @@ public:
 class CServer : public IServer
 {
 	class IGameServer *m_pGameServer;
+	class CConfig *m_pConfig;
 	class IConsole *m_pConsole;
 	class IStorage *m_pStorage;
 	class IEngineAntibot *m_pAntibot;
@@ -107,6 +108,7 @@ class CServer : public IServer
 
 public:
 	class IGameServer *GameServer() { return m_pGameServer; }
+	class CConfig *Config() { return m_pConfig; }
 	class IConsole *Console() { return m_pConsole; }
 	class IStorage *Storage() { return m_pStorage; }
 	class IEngineAntibot *Antibot() { return m_pAntibot; }
@@ -199,7 +201,7 @@ public:
 	};
 
 	CClient m_aClients[MAX_CLIENTS];
-	int IdMap[MAX_CLIENTS * VANILLA_MAX_CLIENTS];
+	int m_aIdMap[MAX_CLIENTS * VANILLA_MAX_CLIENTS];
 
 	CSnapshotDelta m_SnapshotDelta;
 	CSnapshotBuilder m_SnapshotBuilder;
@@ -261,6 +263,7 @@ public:
 	array<CNameBan> m_aNameBans;
 
 	CServer();
+	~CServer();
 
 	bool IsClientNameAvailable(int ClientID, const char *pNameRequest);
 	bool SetClientNameImpl(int ClientID, const char *pNameRequest, bool Set);
@@ -339,7 +342,7 @@ public:
 			unsigned char m_aData[NET_MAX_PAYLOAD];
 		};
 
-		std::list<CCacheChunk> m_lCache;
+		std::list<CCacheChunk> m_Cache;
 
 		CCache();
 		~CCache();
@@ -347,8 +350,8 @@ public:
 		void AddChunk(const void *pData, int Size);
 		void Clear();
 	};
-	CCache m_ServerInfoCache[3 * 2];
-	CCache m_SixupServerInfoCache[2];
+	CCache m_aServerInfoCache[3 * 2];
+	CCache m_aSixupServerInfoCache[2];
 	bool m_ServerInfoNeedsUpdate;
 
 	void ExpireServerInfo();
@@ -370,7 +373,7 @@ public:
 	void StopRecord(int ClientID);
 	bool IsRecording(int ClientID);
 
-	void InitRegister(CNetServer *pNetServer, IEngineMasterServer *pMasterServer, IConsole *pConsole);
+	void InitRegister(CNetServer *pNetServer, IEngineMasterServer *pMasterServer, CConfig *pConfig, IConsole *pConsole);
 	int Run();
 
 	static void ConTestingCommands(IConsole::IResult *pResult, void *pUser);
@@ -432,7 +435,7 @@ public:
 
 	void GetClientAddr(int ClientID, NETADDR *pAddr);
 	int m_aPrevStates[MAX_CLIENTS];
-	const char *GetAnnouncementLine(char const *FileName);
+	const char *GetAnnouncementLine(char const *pFileName);
 	unsigned m_AnnouncementLastLine;
 	void RestrictRconOutput(int ClientID) { m_RconRestrict = ClientID; }
 
@@ -476,7 +479,7 @@ public:
 		CLOSE_SESSION = 2,
 	};
 
-	void SendConnLoggingCommand(CONN_LOGGING_CMD cmd, const NETADDR *pAddr);
+	void SendConnLoggingCommand(CONN_LOGGING_CMD Cmd, const NETADDR *pAddr);
 #endif
 };
 

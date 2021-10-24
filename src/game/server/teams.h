@@ -4,6 +4,7 @@
 
 #include <engine/shared/config.h>
 #include <game/server/gamecontext.h>
+#include <game/server/score.h>
 #include <game/teamscore.h>
 
 #include <utility>
@@ -19,7 +20,6 @@ class CGameTeams
 
 	class CGameContext *m_pGameContext;
 
-	void CheckTeamFinished(int ClientID);
 	bool TeamFinished(int Team);
 	void OnTeamFinish(CPlayer **Players, unsigned int Size, float Time, const char *pTimestamp);
 	void OnFinish(CPlayer *Player, float Time, const char *pTimestamp);
@@ -37,7 +37,7 @@ public:
 
 	CGameTeams(CGameContext *pGameContext);
 
-	//helper methods
+	// helper methods
 	CCharacter *Character(int ClientID)
 	{
 		return GameServer()->GetPlayerChar(ClientID);
@@ -61,16 +61,17 @@ public:
 	void OnCharacterSpawn(int ClientID);
 	void OnCharacterDeath(int ClientID, int Weapon);
 
-	bool SetCharacterTeam(int ClientID, int Team);
+	// returns nullptr if successful, error string if failed
+	const char *SetCharacterTeam(int ClientID, int Team);
+	void CheckTeamFinished(int ClientID);
 
 	void ChangeTeamState(int Team, int State);
-	void onChangeTeamState(int Team, int State, int OldState);
 
 	int64 TeamMask(int Team, int ExceptID = -1, int Asker = -1);
 
 	int Count(int Team) const;
 
-	//need to be very careful using this method. SERIOUSLY...
+	// need to be very careful using this method. SERIOUSLY...
 	void SetForceCharacterTeam(int ClientID, int Team);
 	void SetForceCharacterNewTeam(int ClientID, int Team);
 	void ForceLeaveTeam(int ClientID);
@@ -123,9 +124,9 @@ public:
 		m_TeeFinished[ClientID] = finished;
 	}
 
-	void SetSaving(int TeamID, std::shared_ptr<CScoreSaveResult> SaveResult)
+	void SetSaving(int TeamID, std::shared_ptr<CScoreSaveResult> &SaveResult)
 	{
-		m_pSaveTeamResult[TeamID] = std::move(SaveResult);
+		m_pSaveTeamResult[TeamID] = SaveResult;
 	}
 
 	bool GetSaving(int TeamID)

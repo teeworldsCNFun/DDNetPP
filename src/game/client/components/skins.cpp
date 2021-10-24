@@ -130,6 +130,19 @@ int CSkins::LoadSkin(const char *pName, CImageInfo &Info)
 {
 	char aBuf[512];
 
+	if(!Graphics()->CheckImageDivisibility(pName, Info, g_pData->m_aSprites[SPRITE_TEE_BODY].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_TEE_BODY].m_pSet->m_Gridy, true))
+	{
+		str_format(aBuf, sizeof(aBuf), "skin failed image divisibility: %s", pName);
+		Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "game", aBuf);
+		return 0;
+	}
+	return true;
+}
+
+int CSkins::LoadSkin(const char *pName, CImageInfo &Info)
+{
+	char aBuf[512];
+
 	CSkin Skin;
 	Skin.m_IsVanilla = IsVanillaSkin(pName);
 	Skin.m_OriginalSkin.m_Body = Graphics()->LoadSpriteTexture(Info, &g_pData->m_aSprites[SPRITE_TEE_BODY]);
@@ -262,7 +275,7 @@ int CSkins::LoadSkin(const char *pName, CImageInfo &Info)
 	for(int i = 0; i < 6; ++i)
 		Skin.m_ColorableSkin.m_Eyes[i] = Graphics()->LoadSpriteTexture(Info, &g_pData->m_aSprites[SPRITE_TEE_EYE_NORMAL + i]);
 
-	free(Info.m_pData);
+	Graphics()->FreePNG(&Info);
 
 	// set skin data
 	str_copy(Skin.m_aName, pName, sizeof(Skin.m_aName));

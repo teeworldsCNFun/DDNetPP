@@ -1,7 +1,6 @@
 /*
     DDNet++ commands
 */
-#include "gamecontext.h"
 #include <base/ddpp_logs.h>
 #include <engine/server/server.h>
 #include <engine/shared/config.h>
@@ -11,6 +10,8 @@
 #if defined(CONF_SQL)
 #include <game/server/score/sql_score.h>
 #endif
+
+#include "gamecontext.h"
 
 bool CheckClientID(int ClientID);
 
