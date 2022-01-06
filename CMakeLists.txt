@@ -444,7 +444,7 @@ if(TARGET_OS AND TARGET_OS STREQUAL "mac")
   endif()
 endif()
 
-message(STATUS "******** DDNet ********")
+message(STATUS "******** DDNet++ ********")
 if(NOT TARGET_OS STREQUAL "mac")
   message(STATUS "Target OS: ${TARGET_OS} ${TARGET_BITS}bit")
 else()

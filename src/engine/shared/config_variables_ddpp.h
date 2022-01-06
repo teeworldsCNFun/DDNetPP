@@ -56,14 +56,14 @@ MACRO_CONFIG_INT(SvKickChilliClan, sv_kick_chilli_clan, 1, 0, 2, CFGFLAG_SERVER,
 MACRO_CONFIG_INT(SvShopState, sv_shop_state, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "0=can buy from everywhere, 1=need to be in shop to buy smth")
 
 MACRO_CONFIG_INT(SvRoomState, sv_roomstate, 1, 0, 4, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=buy 2=buy/invite 3=buy/admin 4=buy/admin/invite")
-MACRO_CONFIG_INT(SvPvpArenaState, sv_pvp_arena_state, 1, 0, 3, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=ChillBlock5 2=BlmapChill 3=tilebased")
+MACRO_CONFIG_INT(SvPvpArenaState, sv_pvp_arena_state, 0, 0, 3, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=ChillBlock5 2=BlmapChill 3=tilebased")
 
 MACRO_CONFIG_INT(SvAllowChidraqul, sv_allow_chidraqul, 3, 0, 3, CFGFLAG_SERVER, "allow users to play chidraqul")
 MACRO_CONFIG_INT(SvChidraqulWorldX, sv_chidraqul_world_x, 10, 1, 64, CFGFLAG_SERVER, "chidraqul world size (x)")
 MACRO_CONFIG_INT(SvChidraqulSlots, sv_chidraqul_slots, 3, 0, 10, CFGFLAG_SERVER, "how many slots the chidraqul multiplayer allows")
 MACRO_CONFIG_STR(SvChidraqulDefaultSkin, sv_chidraqul_default_skin, 12, "#", CFGFLAG_SERVER, "Change default skin in chidraqul")
 
-MACRO_CONFIG_INT(SvBlockBroadcast, sv_block_broadcast, 1, 0, 1, CFGFLAG_SERVER, "shows all blocks in broadcast")
+MACRO_CONFIG_INT(SvBlockBroadcast, sv_block_broadcast, 0, 0, 1, CFGFLAG_SERVER, "shows all blocks in broadcast")
 MACRO_CONFIG_INT(SvFakeSuper, sv_fake_super, 0, 0, 1, CFGFLAG_SERVER, "0 to deactivate the /fake_super command")
 MACRO_CONFIG_INT(SvFlagSounds, sv_flag_sounds, 0, 0, 1, CFGFLAG_SERVER, "blockflags make annoying sounds this command toggle the publicsounds")
 
@@ -77,7 +77,7 @@ MACRO_CONFIG_STR(SvRoomPrice, sv_room_price, 16, "5 000", CFGFLAG_SERVER, "chang
 MACRO_CONFIG_STR(SvAdString, sv_ad_string, 128, "chillerdragon.tk\ntest", CFGFLAG_SERVER, "advertisement shown at adv places xd")
 
 MACRO_CONFIG_STR(SvDatabasePath, sv_database_path, 512, "accounts.db", CFGFLAG_SERVER, "path/to/sqlite3_database.db used to save DDNet++ data like accounts")
-MACRO_CONFIG_INT(SvAccountStuff, sv_account_stuff, 1, 0, 2, CFGFLAG_SERVER, "0=off 1=sqlite 2=filebased (changes logout all)" /*"0=off 1=blockcity 2=instagib(coming soon)"*/)
+MACRO_CONFIG_INT(SvAccountStuff, sv_account_stuff, 0, 0, 2, CFGFLAG_SERVER, "0=off 1=sqlite 2=filebased (changes logout all)" /*"0=off 1=blockcity 2=instagib(coming soon)"*/)
 MACRO_CONFIG_INT(SvSuperSpawnX, sv_super_spawn_x, 393, 0, 1000, CFGFLAG_SERVER | CFGFLAG_GAME, "x coord for the supermod spawn")
 MACRO_CONFIG_INT(SvSuperSpawnY, sv_super_spawn_y, 212, 0, 1000, CFGFLAG_SERVER | CFGFLAG_GAME, "y coord for the supermod spawn")
 MACRO_CONFIG_INT(SvNoboSpawnX, sv_nobo_spawn_x, 328, 0, 1000, CFGFLAG_SERVER | CFGFLAG_GAME, "x coord for the nobo spawn")
@@ -87,7 +87,7 @@ MACRO_CONFIG_INT(SvSuperSpawnDDraceStart, sv_super_spawn_ddrace_start, 0, 0, 1, 
 
 MACRO_CONFIG_INT(SvPoopMSG, sv_poop_msg, 1, 0, 2, CFGFLAG_SERVER, "0=off 1=on 2=extreme(coudl fuck server but idk)")
 
-MACRO_CONFIG_INT(SvAllowBomb, sv_allow_bomb, 1, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=on")
+MACRO_CONFIG_INT(SvAllowBomb, sv_allow_bomb, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=on")
 MACRO_CONFIG_INT(SvAllowBombSelfkill, sv_allow_bomb_selfkill, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "0=off 1=on suicide in '/bomb' games")
 MACRO_CONFIG_INT(SvBombTicks, sv_bomb_ticks, 1500, 10, 255000, CFGFLAG_SERVER, "after how many ticks the bomb explodes")
 MACRO_CONFIG_INT(SvBombStartDelay, sv_bomb_start_delay, 5, 1, 20, CFGFLAG_SERVER, "after how many % 40 == 0 the game starts")
@@ -113,8 +113,8 @@ MACRO_CONFIG_INT(SvShowClientDummysInMaster, sv_show_client_dummys_in_master, 1,
 //Instagib ChillerDragon#
 //#######################
 //Server/Config side
-MACRO_CONFIG_INT(SvInstagibMode, sv_insta, 1, 0, 4, CFGFLAG_SERVER, "0=ddrace 1=gdm 2=undefined 3=idm 4=undefined") //undefined were LMSgrenade and LMSrifle but got removed because it was unfinished and only confused the real vanilla survival
-MACRO_CONFIG_INT(SvInstaScore, sv_insta_score, 1, 0, 1, CFGFLAG_SERVER, "0=count from 0 on reconnect in scoreboard 1=load sql scores in scoreboard")
+MACRO_CONFIG_INT(SvInstagibMode, sv_insta, 0, 0, 4, CFGFLAG_SERVER, "0=ddrace 1=gdm 2=undefined 3=idm 4=undefined") //undefined were LMSgrenade and LMSrifle but got removed because it was unfinished and only confused the real vanilla survival
+MACRO_CONFIG_INT(SvInstaScore, sv_insta_score, 0, 0, 1, CFGFLAG_SERVER, "0=count from 0 on reconnect in scoreboard 1=load sql scores in scoreboard")
 MACRO_CONFIG_INT(SvKillsToFinish, sv_kills_to_finish, 16, 5, 100, CFGFLAG_SERVER, "After how much kills a player gets finish (instagib)")
 MACRO_CONFIG_INT(SvDDPPscore, sv_ddpp_score, 1, 0, 1, CFGFLAG_SERVER, "rank scoreboad by times or kills 0=pvp(vanilla) 1=ddpp(ddrace)")
 /*
@@ -182,13 +182,13 @@ MACRO_CONFIG_INT(SvSurvivalLobbyDelay, sv_survival_lobby_delay, 10, 5, 300, CFGF
 MACRO_CONFIG_INT(SvSurvivalDmPlayers, sv_survival_dm_players, 3, 3, 64, CFGFLAG_SERVER, "if less than x players start the deathmatch countdown")
 MACRO_CONFIG_INT(SvSurvivalDmDelay, sv_survival_dm_delay, 5, 0, 60, CFGFLAG_SERVER, "after how many minutes the deathmatch should start 0=off")
 MACRO_CONFIG_INT(SvSurvivalMaxGameTime, sv_survival_max_game_time, 120, 0, 1200, CFGFLAG_SERVER, "after how many minutes the game should end without winners 0=never")
-MACRO_CONFIG_INT(SvAllowSurvival, sv_allow_survival, 1, 0, 1, CFGFLAG_SERVER, "allow survival command")
+MACRO_CONFIG_INT(SvAllowSurvival, sv_allow_survival, 0, 0, 1, CFGFLAG_SERVER, "allow survival command")
 MACRO_CONFIG_INT(SvSurvivalKillProtection, sv_survival_kill_protection, 1, 0, 2, CFGFLAG_SERVER, "0=off 1=allowed in lobby 2=full on")
 
-MACRO_CONFIG_INT(SvVanillaShotgun, sv_vanilla_shotgun, 1, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "Fix tunings for vanilla shotgun (breaks bullet tiles)")
+MACRO_CONFIG_INT(SvVanillaShotgun, sv_vanilla_shotgun, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "Fix tunings for vanilla shotgun (breaks bullet tiles)")
 
 //block tourna
-MACRO_CONFIG_INT(SvAllowBlockTourna, sv_allow_block_tourna, 1, 0, 1, CFGFLAG_SERVER, "0=off 1=allow blocktournaments minigame")
+MACRO_CONFIG_INT(SvAllowBlockTourna, sv_allow_block_tourna, 0, 0, 1, CFGFLAG_SERVER, "0=off 1=allow blocktournaments minigame")
 MACRO_CONFIG_INT(SvBlockTournaPlayers, sv_block_tourna_players, 5, 0, 64, CFGFLAG_SERVER, "players needed to start an block tournament")
 MACRO_CONFIG_INT(SvBlockTournaDelay, sv_block_tourna_delay, 60, 5, 360, CFGFLAG_SERVER, "how long players can '/join' block tournaments (lobby time)")
 MACRO_CONFIG_INT(SvBlockTournaGameTime, sv_block_tourna_game_time, 10, 1, 5000, CFGFLAG_SERVER, "how long block tournas can take in minutes (if after this time nobody won its draw)")
@@ -197,9 +197,9 @@ MACRO_CONFIG_INT(SvBlockTournaGameTime, sv_block_tourna_game_time, 10, 1, 5000, 
 MACRO_CONFIG_INT(SvBlockDMarena, sv_block_dm_arena, 1, 1, 2, CFGFLAG_SERVER, "1=arena1 2=arena2")
 
 //blockwave
-MACRO_CONFIG_INT(SvAllowBlockWave, sv_allow_block_wave, 1, 0, 2, CFGFLAG_SERVER, "0=off 1=allow blockwave minigame 2=only logged in")
+MACRO_CONFIG_INT(SvAllowBlockWave, sv_allow_block_wave, 0, 0, 2, CFGFLAG_SERVER, "0=off 1=allow blockwave minigame 2=only logged in")
 
-MACRO_CONFIG_INT(SvAdventureBots, sv_adventure_bots, 2, 0, 2, CFGFLAG_SERVER, "number of vanilla pvp bots to spawn at TILE_BOTSPAWN_1")
+MACRO_CONFIG_INT(SvAdventureBots, sv_adventure_bots, 0, 0, 2, CFGFLAG_SERVER, "number of vanilla pvp bots to spawn at TILE_BOTSPAWN_1")
 
 //FNN fake neural network
 MACRO_CONFIG_INT(SvFNNstartX, sv_fnn_start_x, 353, 0, 5000, CFGFLAG_SERVER, "where the dmm25 start because spawn points differ")
@@ -222,8 +222,8 @@ MACRO_CONFIG_INT(SvCfgTile2, sv_cfg_tile_2, 0, 0, 10, CFGFLAG_SERVER, "use chat 
 MACRO_CONFIG_INT(SvSupAccReset, sv_sup_acc_reset, 0, 0, 2, CFGFLAG_SERVER, "allow supporters cmds 1='/sql_logout' 2=1 and '/sql_logout_all'")
 
 //hacky
-MACRO_CONFIG_INT(SvSaveWrongRcon, sv_save_wrong_rcon, 1, 0, 1, CFGFLAG_SERVER, "saves wrong rcons in the wrong_rcon.txt (sv_wrong_rcon_file) file")
-MACRO_CONFIG_INT(SvSaveWrongLogin, sv_save_wrong_login, 1, 0, 1, CFGFLAG_SERVER, "saves wrong '/login's in the wrong_login.txt (sv_wrong_login_file) file")
+MACRO_CONFIG_INT(SvSaveWrongRcon, sv_save_wrong_rcon, 0, 0, 1, CFGFLAG_SERVER, "saves wrong rcons in the wrong_rcon.txt (sv_wrong_rcon_file) file")
+MACRO_CONFIG_INT(SvSaveWrongLogin, sv_save_wrong_login, 0, 0, 1, CFGFLAG_SERVER, "saves wrong '/login's in the wrong_login.txt (sv_wrong_login_file) file")
 MACRO_CONFIG_STR(SvWrongRconFile, sv_wrong_rcon_file, 128, "wrong_rcon.txt", CFGFLAG_SERVER, "path/to/file.txt where the wrong rcon logins are stored")
 MACRO_CONFIG_STR(SvWrongLoginFile, sv_wrong_login_file, 128, "wrong_login.txt", CFGFLAG_SERVER, "path/to/file.txt where the wrong account logins are stored")
 MACRO_CONFIG_STR(SvRconHoneyPassword, sv_rcon_honey_password, 32, "", CFGFLAG_SERVER, "Remote console password for honeypot (should have no real access)")
