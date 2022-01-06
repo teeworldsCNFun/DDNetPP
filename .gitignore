@@ -163,7 +163,6 @@ wrong_login.txt
 *.db
 *.opendb
 *.dll
-*.cfg
 
 # TODO: remove when merge added it
 confusables
@@ -185,12 +184,6 @@ tileset_borderset
 packetgen
 
 # cmake TODO: remove when merged with ddnets gitignore
-
-data/
-!/data/
-
-maps/
-!/maps/
 
 bundle/
 !/other/bundle/
